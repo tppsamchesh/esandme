@@ -1,0 +1,39 @@
+import { NextResponse } from 'next/server'
+import { getStripe } from '@/lib/stripe'
+import { getSupabase } from '@/lib/supabase/client'
+
+export async function POST(req: Request) {
+  const body = await req.text()
+  const sig = req.headers.get('stripe-signature')!
+  const stripe = getStripe()
+
+  let event
+
+  try {
+    event = stripe.webhooks.constructEvent(
+      body,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET!
+    )
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 400 })
+  }
+
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object as any
+    const supabase = getSupabase()
+
+    await supabase.from('orders').insert({
+      stripe_session_id: session.id,
+      customer_email: session.customer_details?.email,
+      customer_name: session.customer_details?.name,
+      amount_total: session.amount_total,
+      currency: session.currency,
+      status: 'paid',
+      shipping_address: session.shipping_details?.address,
+      created_at: new Date().toISOString(),
+    })
+  }
+
+  return NextResponse.json({ received: true })
+}
