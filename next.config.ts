@@ -1,9 +1,7 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  typescript: {
-    ignoreBuildErrors: false,
-  },
+  turbopack: {},
   images: {
     remotePatterns: [
       {
@@ -11,12 +9,6 @@ const nextConfig: NextConfig = {
         hostname: 'cdn.sanity.io',
       },
     ],
-  },
-  webpack: (config) => {
-    config.watchOptions = {
-      ignored: ['**/studio/**'],
-    }
-    return config
   },
 }
 
