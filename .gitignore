@@ -3,3 +3,4 @@ studio/node_modules/
 .next/
 .env.local
 .env
+.vercel
