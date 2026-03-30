@@ -33,6 +33,15 @@ export async function POST(req: Request) {
       shipping_address: session.shipping_details?.address,
       created_at: new Date().toISOString(),
     })
+
+    const now = new Date().toISOString()
+    await supabase
+      .from('abandoned_carts')
+      .update({
+        recovered: true,
+        recovered_at: now,
+      })
+      .eq('stripe_session_id', session.id)
   }
 
   return NextResponse.json({ received: true })

@@ -1,10 +1,16 @@
 import { NextResponse } from 'next/server'
 import { getStripe } from '@/lib/stripe'
+import { getSupabase } from '@/lib/supabase/client'
+
+const FREE_DELIVERY_THRESHOLD = 5000
+const DELIVERY_FEE_PENCE = 495
 
 export async function POST(req: Request) {
   try {
-    const { items } = await req.json()
+    const { items, email } = await req.json()
     const stripe = getStripe()
+    const emailTrim =
+      typeof email === 'string' ? email.trim().toLowerCase() : ''
 
     const lineItems = items.map((item: any) => ({
       price_data: {
@@ -19,6 +25,7 @@ export async function POST(req: Request) {
     }))
 
     const session = await stripe.checkout.sessions.create({
+      ...(emailTrim ? { customer_email: emailTrim } : {}),
       payment_method_types: ['card'],
       line_items: lineItems,
       mode: 'payment',
@@ -52,6 +59,28 @@ export async function POST(req: Request) {
         },
       ],
     })
+
+    if (emailTrim) {
+      const cartSubtotal = items.reduce(
+        (sum: number, item: { price?: number; quantity?: number }) =>
+          sum + (item.price ?? 0) * (item.quantity ?? 0),
+        0
+      )
+      const hasFreeDelivery = cartSubtotal >= FREE_DELIVERY_THRESHOLD
+      const deliveryPence = hasFreeDelivery ? 0 : DELIVERY_FEE_PENCE
+      const cartTotal = cartSubtotal + deliveryPence
+
+      const supabase = getSupabase()
+      const { error: abandonedErr } = await supabase.from('abandoned_carts').insert({
+        email: emailTrim,
+        cart_items: items,
+        cart_total: cartTotal,
+        stripe_session_id: session.id,
+      })
+      if (abandonedErr) {
+        console.warn('abandoned_carts insert', abandonedErr.message)
+      }
+    }
 
     return NextResponse.json({ url: session.url })
   } catch (error: any) {

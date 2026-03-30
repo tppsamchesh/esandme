@@ -10,6 +10,8 @@ const links: ReadonlyArray<{
 }> = [
   { href: "/admin", label: "Dashboard", exact: true },
   { href: "/admin/orders", label: "Orders" },
+  { href: "/admin/receipts", label: "Receipts" },
+  { href: "/admin/abandoned-carts", label: "Abandoned Carts" },
   { href: "/admin/products", label: "Products" },
   { href: "/admin/blog", label: "Blog" },
   { href: "/admin/analytics", label: "Analytics" },
@@ -27,7 +29,7 @@ export function AdminSidebar() {
   const pathname = usePathname() ?? "";
 
   return (
-    <aside className="flex w-56 shrink-0 flex-col border-r border-white/20 bg-brand-primary text-white">
+    <aside className="flex w-56 shrink-0 flex-col border-r border-white/20 bg-brand-primary text-white print:hidden">
       <div className="border-b border-white/20 px-5 py-6">
         <Link
           href="/admin"

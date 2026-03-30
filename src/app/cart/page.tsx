@@ -11,6 +11,7 @@ const DELIVERY_FEE_PENCE = 495
 export default function CartPage() {
   const { items, removeItem, updateQuantity, total } = useCart()
   const [loading, setLoading] = useState(false)
+  const [email, setEmail] = useState('')
 
   const cartTotal = total()
   const remainingForFreeDelivery = FREE_DELIVERY_THRESHOLD - cartTotal
@@ -28,7 +29,10 @@ export default function CartPage() {
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items }),
+        body: JSON.stringify({
+          items,
+          email: email.trim() || undefined,
+        }),
       })
       const data = await res.json()
       if (data.url) window.location.href = data.url
@@ -185,11 +189,34 @@ export default function CartPage() {
           </div>
         </div>
 
+        <div className="mt-8 space-y-2">
+          <label
+            htmlFor="checkout-email"
+            className="block text-sm font-medium text-brand-text"
+          >
+            Email for order updates &amp; reminders
+          </label>
+          <input
+            id="checkout-email"
+            type="email"
+            name="email"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            className="w-full rounded-lg border border-black/15 bg-white px-4 py-3 text-sm text-brand-text outline-none ring-brand-primary focus:ring-2"
+          />
+          <p className="text-xs text-brand-text/55">
+            We&apos;ll save your bag if you don&apos;t finish checkout — use the
+            same email you&apos;ll enter on Stripe.
+          </p>
+        </div>
+
         <button
           type="button"
           onClick={handleCheckout}
           disabled={loading}
-          className="mt-8 w-full rounded-lg bg-brand-primary py-4 text-sm font-medium text-white transition-colors hover:bg-brand-primary/90 disabled:opacity-50"
+          className="mt-6 w-full rounded-lg bg-brand-primary py-4 text-sm font-medium text-white transition-colors hover:bg-brand-primary/90 disabled:opacity-50"
         >
           {loading ? 'Redirecting…' : 'Checkout'}
         </button>
