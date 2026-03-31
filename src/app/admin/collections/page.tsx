@@ -150,6 +150,9 @@ export async function createCollection(formData: FormData) {
     }
   }
 
+  console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
+  console.log('Service key exists:', !!process.env.SUPABASE_SERVICE_ROLE_KEY)
+
   const insertRes = await adminSupabase.from("collections").insert({
     title,
     slug: slugCurrent,
