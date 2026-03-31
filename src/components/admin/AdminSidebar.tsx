@@ -1,5 +1,6 @@
 "use client";
 
+import { Sparkles, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -7,6 +8,7 @@ const links: ReadonlyArray<{
   href: string;
   label: string;
   exact?: boolean;
+  icon?: LucideIcon;
 }> = [
   { href: "/admin", label: "Dashboard", exact: true },
   { href: "/admin/orders", label: "Orders" },
@@ -17,6 +19,7 @@ const links: ReadonlyArray<{
   { href: "/admin/blog", label: "Blog" },
   { href: "/admin/analytics", label: "Analytics" },
   { href: "/admin/settings", label: "Settings" },
+  { href: "/admin/agents", label: "AI Agents", icon: Sparkles },
 ];
 
 function isActive(pathname: string, href: string, exact?: boolean) {
@@ -41,18 +44,21 @@ export function AdminSidebar() {
         <p className="mt-1 text-xs font-normal text-white/80">Admin</p>
       </div>
       <nav className="flex flex-1 flex-col gap-0.5 p-3">
-        {links.map(({ href, label, exact }) => {
+        {links.map(({ href, label, exact, icon: Icon }) => {
           const active = isActive(pathname, href, exact);
           return (
             <Link
               key={href}
               href={href}
-              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+              className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                 active
                   ? "bg-white/20 text-white"
                   : "text-white/90 hover:bg-white/10"
               }`}
             >
+              {Icon ? (
+                <Icon className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
+              ) : null}
               {label}
             </Link>
           );
