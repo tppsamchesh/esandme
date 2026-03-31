@@ -1,5 +1,4 @@
 import { adminSupabase } from "@/lib/supabase/admin-client";
-import { getSupabase } from "@/lib/supabase/client";
 import { uploadPublicImage } from "@/lib/supabase/storage";
 import Image from "next/image";
 import type { Metadata } from "next";
@@ -58,11 +57,16 @@ export async function saveCollection(formData: FormData) {
   const title = formData.get("title")?.toString()?.trim() ?? "";
   const description = formData.get("description")?.toString() ?? "";
 
-  const { data: row, error: fetchError } = await adminSupabase
+  const fetchRes = await adminSupabase
     .from("collections")
     .select("id, hero_image_url")
     .eq("id", id)
     .maybeSingle();
+  const { data: row, error: fetchError } = fetchRes;
+  console.log(
+    "[admin/collections] saveCollection select error (full):",
+    fetchError,
+  );
 
   if (fetchError) {
     redirectCollectionsError(
@@ -85,7 +89,7 @@ export async function saveCollection(formData: FormData) {
     }
   }
 
-  const { error: updateError } = await adminSupabase
+  const updateRes = await adminSupabase
     .from("collections")
     .update({
       title,
@@ -93,6 +97,11 @@ export async function saveCollection(formData: FormData) {
       hero_image_url,
     })
     .eq("id", id);
+  const { error: updateError } = updateRes;
+  console.log(
+    "[admin/collections] saveCollection update error (full):",
+    updateError,
+  );
 
   if (updateError) {
     redirectCollectionsError(updateError.message);
@@ -141,12 +150,17 @@ export async function createCollection(formData: FormData) {
     }
   }
 
-  const { error: insertError } = await adminSupabase.from("collections").insert({
+  const insertRes = await adminSupabase.from("collections").insert({
     title,
     slug: slugCurrent,
     description: description.trim() || null,
     hero_image_url,
   });
+  const { error: insertError } = insertRes;
+  console.log(
+    "[admin/collections] createCollection insert error (full):",
+    insertError,
+  );
 
   if (insertError) {
     redirectCollectionsError(insertError.message, { newForm: true });
@@ -165,11 +179,15 @@ export default async function AdminCollectionsPage({
   const showNew = sp.new === "1" || sp.new === "true";
   const queryError = sp.error?.trim();
 
-  const supabase = getSupabase();
-  const { data: rowsData, error: listError } = await supabase
+  const listRes = await adminSupabase
     .from("collections")
     .select("*")
     .order("created_at", { ascending: true });
+  const { data: rowsData, error: listError } = listRes;
+  console.log(
+    "[admin/collections] page list select error (full):",
+    listError,
+  );
 
   const rows = (rowsData ?? []) as CollectionRow[];
   const fetchErrorMessage = listError?.message;
