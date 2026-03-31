@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, DM_Sans } from "next/font/google";
+import { ChatBot } from "@/components/chatbot/ChatBot";
 import { SiteChrome } from "@/components/layout/SiteChrome";
 import "./globals.css";
 
@@ -57,6 +58,7 @@ export default function RootLayout({
     >
       <body className="flex min-h-full flex-col bg-brand-bg font-sans text-brand-text">
         <SiteChrome>{children}</SiteChrome>
+        <ChatBot />
       </body>
     </html>
   );
