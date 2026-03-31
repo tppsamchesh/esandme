@@ -183,6 +183,29 @@ function safeDecode(s: string) {
   }
 }
 
+/** Turn thrown values / API errors into a safe string for UI (never [object Object]). */
+function unknownErrorToString(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (err !== null && typeof err === "object") {
+    const o = err as Record<string, unknown>;
+    if (typeof o.message === "string" && o.message) return o.message;
+    if (typeof o.error === "string" && o.error) return o.error;
+    if (typeof o.details === "string" && o.details) return o.details;
+    try {
+      return JSON.stringify(err);
+    } catch {
+      return "Unknown error";
+    }
+  }
+  if (typeof err === "string") {
+    const t = err.trim();
+    if (t === "[object Object]") return "Unknown error (no message).";
+    return err;
+  }
+  const s = String(err);
+  return s === "[object Object]" ? "Unknown error (no message)." : s;
+}
+
 function buildAdminProductsPath(sp: {
   q?: string;
   collection?: string;
@@ -484,7 +507,7 @@ export async function deleteProduct(formData: FormData) {
     const { error } = await adminSupabase.from("products").delete().eq("id", pid);
     if (error) throw error;
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = unknownErrorToString(e);
     const sep = returnTo.includes("?") ? "&" : "?";
     redirect(
       `${returnTo}${sep}deleteError=${encodeURIComponent(msg.slice(0, 500))}`,
@@ -599,7 +622,9 @@ export default async function AdminProductsPage({
             >
               {sp.deleteError === "token"
                 ? "Supabase is not configured (NEXT_PUBLIC_SUPABASE_URL). Cannot delete."
-                : `Could not delete product: ${safeDecode(sp.deleteError)}`}
+                : `Could not delete product: ${unknownErrorToString(
+                    safeDecode(sp.deleteError),
+                  )}`}
             </div>
           ) : null}
 
