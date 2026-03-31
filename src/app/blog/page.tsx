@@ -1,7 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
-import { client, urlFor } from "@/lib/sanity/client";
-import { allBlogPostsQuery } from "@/lib/sanity/queries";
+import { fetchAllBlogPosts } from "@/lib/supabase/queries";
 
 function formatPublishedDate(iso: string | null | undefined) {
   if (!iso) return "";
@@ -19,11 +17,11 @@ type BlogPostCard = {
   slug: { current: string };
   publishedAt?: string;
   excerpt?: string;
-  coverImage?: unknown;
+  coverImage?: string | null;
 };
 
 export default async function BlogPage() {
-  const posts = await client.fetch<BlogPostCard[]>(allBlogPostsQuery);
+  const posts = await fetchAllBlogPosts();
 
   return (
     <div>
@@ -58,12 +56,10 @@ export default async function BlogPage() {
                   >
                     <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-[#E8E0D5]">
                       {post.coverImage ? (
-                        <Image
-                          src={urlFor(post.coverImage).width(800).url()}
+                        <img
+                          src={post.coverImage}
                           alt={post.title}
-                          fill
-                          className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-                          sizes="(max-width: 768px) 100vw, 50vw"
+                          className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                         />
                       ) : null}
                     </div>

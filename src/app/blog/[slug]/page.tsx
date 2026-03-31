@@ -1,10 +1,8 @@
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { PortableTextBlock } from "@portabletext/types";
 import { PortableText } from "next-sanity";
-import { client, urlFor } from "@/lib/sanity/client";
-import { blogPostBySlugQuery } from "@/lib/sanity/queries";
+import { fetchBlogPostBySlug } from "@/lib/supabase/queries";
 import type { Metadata } from "next";
 
 function formatPublishedDate(iso: string | null | undefined) {
@@ -23,7 +21,7 @@ type BlogPost = {
   slug: { current: string };
   publishedAt?: string;
   excerpt?: string;
-  coverImage?: unknown;
+  coverImage?: string | null;
   body?: PortableTextBlock | PortableTextBlock[];
   seoTitle?: string;
   seoDescription?: string;
@@ -35,9 +33,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const post = await client.fetch<BlogPost | null>(blogPostBySlugQuery, {
-    slug,
-  });
+  const post = (await fetchBlogPostBySlug(slug)) as BlogPost | null;
   if (!post) return { title: "Post not found" };
   return {
     title: post.seoTitle || post.title,
@@ -51,9 +47,7 @@ export default async function BlogPostPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const post = await client.fetch<BlogPost | null>(blogPostBySlugQuery, {
-    slug,
-  });
+  const post = (await fetchBlogPostBySlug(slug)) as BlogPost | null;
 
   if (!post) notFound();
 
@@ -89,13 +83,10 @@ export default async function BlogPostPage({
       {post.coverImage ? (
         <div className="mx-auto max-w-4xl px-4 pt-10">
           <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-[#E8E0D5]">
-            <Image
-              src={urlFor(post.coverImage).width(1200).url()}
+            <img
+              src={post.coverImage}
               alt={post.title}
-              fill
-              className="object-cover"
-              sizes="(max-width: 896px) 100vw, 896px"
-              priority
+              className="absolute inset-0 h-full w-full object-cover"
             />
           </div>
         </div>

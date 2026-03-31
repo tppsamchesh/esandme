@@ -1,8 +1,6 @@
-import { client, urlFor } from "@/lib/sanity/client";
-import { productBySlugQuery } from "@/lib/sanity/queries";
+import { fetchProductBySlug } from "@/lib/supabase/queries";
 import AddToCart from "@/components/commerce/AddToCart";
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 
 type ProductDoc = {
@@ -20,9 +18,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const product = await client.fetch<ProductDoc | null>(productBySlugQuery, {
-    slug,
-  });
+  const product = (await fetchProductBySlug(slug)) as ProductDoc | null;
 
   if (!product) {
     return { title: "Product not found" };
@@ -71,7 +67,7 @@ export default async function ProductPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const product = await client.fetch(productBySlugQuery, { slug });
+  const product = await fetchProductBySlug(slug);
 
   if (!product) {
     return (
@@ -133,13 +129,10 @@ export default async function ProductPage({
         <div className="grid grid-cols-1 gap-12 md:grid-cols-2 md:gap-14">
           <div className="relative aspect-square overflow-hidden rounded-xl bg-[#E8E0D5]">
             {product.images?.[0] ? (
-              <Image
-                src={urlFor(product.images[0]).width(800).url()}
+              <img
+                src={product.images[0]}
                 alt={product.title}
-                fill
-                className="object-cover"
-                sizes="(max-width: 768px) 100vw, 50vw"
-                priority
+                className="absolute inset-0 h-full w-full object-cover"
               />
             ) : null}
           </div>

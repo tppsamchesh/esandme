@@ -1,7 +1,5 @@
-import { client, urlFor } from "@/lib/sanity/client";
-import { collectionBySlugQuery } from "@/lib/sanity/queries";
+import { fetchCollectionBySlug } from "@/lib/supabase/queries";
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 
 type CollectionDoc = {
@@ -17,10 +15,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const collection = await client.fetch<CollectionDoc | null>(
-    collectionBySlugQuery,
-    { slug }
-  );
+  const collection = (await fetchCollectionBySlug(slug)) as CollectionDoc | null;
 
   if (!collection) {
     return { title: "Collection not found" };
@@ -45,7 +40,7 @@ export default async function CollectionPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const collection = await client.fetch(collectionBySlugQuery, { slug });
+  const collection = await fetchCollectionBySlug(slug);
 
   if (!collection) {
     return (
@@ -78,12 +73,10 @@ export default async function CollectionPage({
             <article className="rounded-lg transition-shadow duration-300 hover:shadow-md">
               <div className="relative aspect-square overflow-hidden rounded-lg bg-[#E8E0D5]">
                 {product.images?.[0] ? (
-                  <Image
-                    src={urlFor(product.images[0]).width(600).url()}
+                  <img
+                    src={product.images[0]}
                     alt={product.title}
-                    fill
-                    className="object-cover transition-transform duration-300 group-hover:scale-105"
-                    sizes="(max-width: 768px) 50vw, 33vw"
+                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                   />
                 ) : null}
                 {product.comparePrice != null &&

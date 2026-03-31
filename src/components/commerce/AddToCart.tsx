@@ -14,7 +14,7 @@ export default function AddToCart({ product }: { product: any }) {
       id: selectedVariant ? `${product._id}-${selectedVariant.sku}` : product._id,
       title: selectedVariant ? `${product.title} - ${selectedVariant.title}` : product.title,
       price: selectedVariant?.price || product.price,
-      image: product.images?.[0] ? urlFor(product.images[0]).width(400).url() : '',
+      image: product.images?.[0] ? urlFor(product.images[0]).width(400).url() : "",
       quantity: 1,
       variant: selectedVariant ? { title: selectedVariant.title, sku: selectedVariant.sku } : undefined,
     })

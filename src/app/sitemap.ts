@@ -4,7 +4,7 @@ import {
   allBlogPostsQuery,
   allCollectionsQuery,
   allProductsQuery,
-} from "@/lib/sanity/queries";
+} from "@/lib/sanity/queries.OLD";
 
 function getBaseUrl() {
   const raw =
