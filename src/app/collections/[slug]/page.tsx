@@ -86,14 +86,32 @@ export default async function CollectionPage({
                     sizes="(max-width: 768px) 50vw, 33vw"
                   />
                 ) : null}
+                {product.comparePrice != null &&
+                typeof product.comparePrice === "number" ? (
+                  <span className="absolute left-2 top-2 rounded-full bg-[#8BA888]/95 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white shadow-sm">
+                    Sale
+                  </span>
+                ) : null}
               </div>
               <div className="pt-4">
                 <h2 className="font-sans text-base font-medium text-brand-text">
                   {product.title}
                 </h2>
-                <p className="mt-1 font-sans text-sm font-medium text-brand-primary">
-                  £{(product.price / 100).toFixed(2)}
-                </p>
+                {product.comparePrice != null &&
+                typeof product.comparePrice === "number" ? (
+                  <p className="mt-1 flex flex-wrap items-baseline gap-2 font-sans text-sm">
+                    <span className="font-medium text-brand-text/45 line-through">
+                      £{(product.comparePrice / 100).toFixed(2)}
+                    </span>
+                    <span className="font-medium text-[#8BA888]">
+                      £{(product.price / 100).toFixed(2)}
+                    </span>
+                  </p>
+                ) : (
+                  <p className="mt-1 font-sans text-sm font-medium text-brand-primary">
+                    £{(product.price / 100).toFixed(2)}
+                  </p>
+                )}
               </div>
             </article>
           </Link>

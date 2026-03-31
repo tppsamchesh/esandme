@@ -13,6 +13,7 @@ const links: ReadonlyArray<{
   { href: "/admin/receipts", label: "Receipts" },
   { href: "/admin/abandoned-carts", label: "Abandoned Carts" },
   { href: "/admin/products", label: "Products" },
+  { href: "/admin/collections", label: "Collections" },
   { href: "/admin/blog", label: "Blog" },
   { href: "/admin/analytics", label: "Analytics" },
   { href: "/admin/settings", label: "Settings" },

@@ -1,7 +1,7 @@
 import { groq } from 'next-sanity'
 
 export const allProductsQuery = groq`
-  *[_type == "product"] {
+  *[_type == "product" && hidden != true] {
     _id, title, slug, price, comparePrice,
     images, collection->{title, slug},
     variants, seoTitle, seoDescription
@@ -9,7 +9,7 @@ export const allProductsQuery = groq`
 `
 
 export const productBySlugQuery = groq`
-  *[_type == "product" && slug.current == $slug][0] {
+  *[_type == "product" && slug.current == $slug && hidden != true][0] {
     _id, title, slug, description, price, comparePrice,
     images, collection->{title, slug},
     variants, reviews, seoTitle, seoDescription
@@ -20,7 +20,7 @@ export const collectionBySlugQuery = groq`
   *[_type == "collection" && slug.current == $slug][0] {
     _id, title, slug, description, heroImage,
     seoTitle, seoDescription,
-    "products": *[_type == "product" && collection._ref == ^._id] {
+    "products": *[_type == "product" && collection._ref == ^._id && hidden != true] {
       _id, title, slug, price, comparePrice, images, variants
     }
   }

@@ -11,6 +11,7 @@ type ProductDoc = {
   seoTitle?: string | null;
   seoDescription?: string | null;
   price: number;
+  comparePrice?: number | null;
 };
 
 export async function generateMetadata({
@@ -147,9 +148,21 @@ export default async function ProductPage({
             <h1 className="font-heading text-4xl font-medium tracking-tight text-brand-text">
               {product.title}
             </h1>
-            <p className="mt-4 font-sans text-xl font-medium text-brand-primary">
-              £{(product.price / 100).toFixed(2)}
-            </p>
+            {product.comparePrice != null &&
+            typeof product.comparePrice === "number" ? (
+              <p className="mt-4 flex flex-wrap items-baseline gap-3 font-sans text-xl">
+                <span className="font-medium text-brand-text/45 line-through">
+                  £{(product.comparePrice / 100).toFixed(2)}
+                </span>
+                <span className="font-medium text-[#8BA888]">
+                  £{(product.price / 100).toFixed(2)}
+                </span>
+              </p>
+            ) : (
+              <p className="mt-4 font-sans text-xl font-medium text-brand-primary">
+                £{(product.price / 100).toFixed(2)}
+              </p>
+            )}
             {product.description ? (
               <p className="mt-6 font-sans leading-relaxed text-gray-600">
                 {product.description}
