@@ -1,9 +1,18 @@
-import { uploadPublicImage } from "@/lib/supabase/storage";
 import Image from "next/image";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+
+const COLLECTIONS_API_PATH = "/api/admin/collections";
+
+async function fetchCollectionsApi(init?: RequestInit) {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  const proto = h.get("x-forwarded-proto") ?? "http";
+  return fetch(`${proto}://${host}${COLLECTIONS_API_PATH}`, init);
+}
 
 export const metadata: Metadata = {
   title: "Collections",
@@ -17,13 +26,6 @@ type CollectionRow = {
   hero_image_url: string | null;
   created_at?: string;
 };
-
-function getApiOrigin(): string {
-  const site = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
-  if (site) return site;
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return "http://localhost:3000";
-}
 
 function slugify(input: string): string {
   return input
@@ -60,31 +62,14 @@ export async function saveCollection(formData: FormData) {
   if (!id) {
     redirectCollectionsError("Missing collection id.");
   }
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    redirectCollectionsError(
-      "Supabase is not configured (missing NEXT_PUBLIC_SUPABASE_URL).",
-    );
-  }
 
   const title = formData.get("title")?.toString()?.trim() ?? "";
   const description = formData.get("description")?.toString() ?? "";
   const slug = formData.get("slug")?.toString()?.trim() ?? "";
-  let hero_image_url =
+  const hero_image_url =
     (formData.get("hero_image_url")?.toString() ?? "").trim() || null;
 
-  const file = formData.get("heroImage");
-  if (file instanceof File && file.size > 0) {
-    try {
-      hero_image_url = await uploadPublicImage(file, "collections");
-    } catch (e) {
-      redirectCollectionsError(
-        e instanceof Error ? e.message : "Hero image upload failed.",
-      );
-    }
-  }
-
-  const origin = getApiOrigin();
-  const res = await fetch(`${origin}/api/admin/collections`, {
+  const res = await fetchCollectionsApi({
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -114,12 +99,6 @@ export async function saveCollection(formData: FormData) {
 
 export async function createCollection(formData: FormData) {
   "use server";
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    redirectCollectionsError(
-      "Supabase is not configured (missing NEXT_PUBLIC_SUPABASE_URL).",
-      { newForm: true },
-    );
-  }
 
   const title = formData.get("title")?.toString()?.trim() ?? "";
   let slugCurrent = formData.get("slug")?.toString()?.trim() ?? "";
@@ -138,21 +117,9 @@ export async function createCollection(formData: FormData) {
     );
   }
 
-  const file = formData.get("heroImage");
-  let hero_image_url: string | null = null;
-  if (file instanceof File && file.size > 0) {
-    try {
-      hero_image_url = await uploadPublicImage(file, "collections");
-    } catch (e) {
-      redirectCollectionsError(
-        e instanceof Error ? e.message : "Hero image upload failed.",
-        { newForm: true },
-      );
-    }
-  }
+  const hero_image_url: string | null = null;
 
-  const origin = getApiOrigin();
-  const res = await fetch(`${origin}/api/admin/collections`, {
+  const res = await fetchCollectionsApi({
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -190,8 +157,7 @@ export default async function AdminCollectionsPage({
   const showNew = sp.new === "1" || sp.new === "true";
   const queryError = sp.error?.trim();
 
-  const origin = getApiOrigin();
-  const listRes = await fetch(`${origin}/api/admin/collections`, {
+  const listRes = await fetchCollectionsApi({
     cache: "no-store",
   });
 
@@ -204,7 +170,7 @@ export default async function AdminCollectionsPage({
       fetchErrorMessage =
         listJson.error ?? `Could not load collections (${listRes.status})`;
     } else {
-      rows = (listJson.data ?? []) as CollectionRow[];
+      rows = listJson.data ?? [];
     }
   } catch {
     fetchErrorMessage = "Could not parse collections API response.";
