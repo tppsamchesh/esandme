@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabase } from "@/lib/supabase/client";
+import { adminSupabase } from "@/lib/supabase/admin-client";
 
 type Body = {
   email?: string;
@@ -30,8 +30,7 @@ export async function POST(req: Request) {
         ? body.stripeSessionId.trim()
         : null;
 
-    const supabase = getSupabase();
-    const { error } = await supabase.from("abandoned_carts").insert({
+    const { error } = await adminSupabase.from("abandoned_carts").insert({
       email,
       cart_items,
       cart_total,

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { adminSupabase } from "@/lib/supabase/admin-client";
 import { getSupabase } from "@/lib/supabase/client";
 import { Resend } from "resend";
 
@@ -110,7 +111,7 @@ export async function GET(req: Request) {
       }
 
       const now = new Date().toISOString();
-      const { error: upErr } = await supabase
+      const { error: upErr } = await adminSupabase
         .from("abandoned_carts")
         .update({
           recovery_email_sent: true,

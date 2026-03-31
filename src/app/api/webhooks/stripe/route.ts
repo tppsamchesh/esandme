@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getStripe } from '@/lib/stripe'
-import { getSupabase } from '@/lib/supabase/client'
+import { adminSupabase } from '@/lib/supabase/admin-client'
 
 export async function POST(req: Request) {
   const body = await req.text()
@@ -21,9 +21,7 @@ export async function POST(req: Request) {
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as any
-    const supabase = getSupabase()
-
-    await supabase.from('orders').insert({
+    await adminSupabase.from('orders').insert({
       stripe_session_id: session.id,
       customer_email: session.customer_details?.email,
       customer_name: session.customer_details?.name,
@@ -35,7 +33,7 @@ export async function POST(req: Request) {
     })
 
     const now = new Date().toISOString()
-    await supabase
+    await adminSupabase
       .from('abandoned_carts')
       .update({
         recovered: true,

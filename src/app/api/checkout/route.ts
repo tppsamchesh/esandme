@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getStripe } from '@/lib/stripe'
-import { getSupabase } from '@/lib/supabase/client'
+import { adminSupabase } from '@/lib/supabase/admin-client'
 
 const FREE_DELIVERY_THRESHOLD = 5000
 const DELIVERY_FEE_PENCE = 495
@@ -70,8 +70,7 @@ export async function POST(req: Request) {
       const deliveryPence = hasFreeDelivery ? 0 : DELIVERY_FEE_PENCE
       const cartTotal = cartSubtotal + deliveryPence
 
-      const supabase = getSupabase()
-      const { error: abandonedErr } = await supabase.from('abandoned_carts').insert({
+      const { error: abandonedErr } = await adminSupabase.from('abandoned_carts').insert({
         email: emailTrim,
         cart_items: items,
         cart_total: cartTotal,

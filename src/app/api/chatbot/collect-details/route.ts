@@ -11,7 +11,7 @@
 */
 
 import { NextResponse } from "next/server";
-import { getSupabase } from "@/lib/supabase/client";
+import { adminSupabase } from "@/lib/supabase/admin-client";
 
 type ConvMessage = { role: "user" | "assistant"; content: string };
 
@@ -132,8 +132,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const supabase = getSupabase();
-    const { error: insertError } = await supabase
+    const { error: insertError } = await adminSupabase
       .from("chatbot_enquiries")
       .insert({
         name,

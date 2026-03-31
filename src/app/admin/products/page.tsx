@@ -6,6 +6,7 @@ import {
   variantNumericStock,
 } from "./_lib/stock";
 import { formatGbp } from "@/lib/admin/format";
+import { adminSupabase } from "@/lib/supabase/admin-client";
 import { getSupabase } from "@/lib/supabase/client";
 import { uploadPublicImage } from "@/lib/supabase/storage";
 import Image from "next/image";
@@ -237,8 +238,10 @@ export async function toggleProductHidden(formData: FormData) {
     redirect(redirectTo);
   }
   try {
-    const supabase = getSupabase();
-    await supabase.from("products").update({ hidden: nextHidden }).eq("id", id);
+    await adminSupabase
+      .from("products")
+      .update({ hidden: nextHidden })
+      .eq("id", id);
   } catch {
     // Leave UI unchanged on failure; user can retry
   }
@@ -258,8 +261,7 @@ export async function saveProductSale(formData: FormData) {
     redirect(redirectTo);
   }
   try {
-    const supabase = getSupabase();
-    const { data: row, error: fetchErr } = await supabase
+    const { data: row, error: fetchErr } = await adminSupabase
       .from("products")
       .select("price, compare_price")
       .eq("id", id)
@@ -273,7 +275,7 @@ export async function saveProductSale(formData: FormData) {
 
     if (salePounds === "") {
       if (currentCompare != null) {
-        await supabase
+        await adminSupabase
           .from("products")
           .update({
             price: currentCompare,
@@ -287,12 +289,12 @@ export async function saveProductSale(formData: FormData) {
         redirect(redirectTo);
       }
       if (currentCompare != null) {
-        await supabase
+        await adminSupabase
           .from("products")
           .update({ price: salePence })
           .eq("id", id);
       } else {
-        await supabase
+        await adminSupabase
           .from("products")
           .update({
             compare_price: currentPrice,
@@ -326,8 +328,7 @@ export async function saveProductVariantsAndImages(formData: FormData) {
   );
 
   try {
-    const supabase = getSupabase();
-    const { data: prod, error: pe } = await supabase
+    const { data: prod, error: pe } = await adminSupabase
       .from("products")
       .select("id")
       .eq("id", id)
@@ -343,7 +344,7 @@ export async function saveProductVariantsAndImages(formData: FormData) {
       formData.getAll("removeImageId").map((v) => String(v)),
     );
 
-    const { data: dbVariantRows } = await supabase
+    const { data: dbVariantRows } = await adminSupabase
       .from("product_variants")
       .select("id")
       .eq("product_id", id);
@@ -353,7 +354,7 @@ export async function saveProductVariantsAndImages(formData: FormData) {
 
     for (const rid of removeVariantKeys) {
       if (dbVariantIds.has(rid)) {
-        await supabase.from("product_variants").delete().eq("id", rid);
+        await adminSupabase.from("product_variants").delete().eq("id", rid);
       }
     }
 
@@ -384,7 +385,7 @@ export async function saveProductVariantsAndImages(formData: FormData) {
       if (pricePence != null) upd.price = pricePence;
       else upd.price = null;
 
-      await supabase
+      await adminSupabase
         .from("product_variants")
         .update(upd)
         .eq("id", vid)
@@ -423,18 +424,18 @@ export async function saveProductVariantsAndImages(formData: FormData) {
         stock,
       };
       if (pricePence != null) ins.price = pricePence;
-      await supabase.from("product_variants").insert(ins);
+      await adminSupabase.from("product_variants").insert(ins);
     }
 
     for (const imgId of removeImageIds) {
-      await supabase
+      await adminSupabase
         .from("product_images")
         .delete()
         .eq("id", imgId)
         .eq("product_id", id);
     }
 
-    const { data: sortRow } = await supabase
+    const { data: sortRow } = await adminSupabase
       .from("product_images")
       .select("sort_order")
       .eq("product_id", id)
@@ -452,7 +453,7 @@ export async function saveProductVariantsAndImages(formData: FormData) {
       if (!(f instanceof File) || f.size === 0) continue;
       sortBase += 1;
       const url = await uploadPublicImage(f, "products");
-      await supabase.from("product_images").insert({
+      await adminSupabase.from("product_images").insert({
         product_id: id,
         url,
         sort_order: sortBase,
@@ -477,11 +478,10 @@ export async function deleteProduct(formData: FormData) {
     redirect(`${returnTo}${sep}deleteError=token`);
   }
   try {
-    const supabase = getSupabase();
     const pid = id.trim();
-    await supabase.from("product_variants").delete().eq("product_id", pid);
-    await supabase.from("product_images").delete().eq("product_id", pid);
-    const { error } = await supabase.from("products").delete().eq("id", pid);
+    await adminSupabase.from("product_variants").delete().eq("product_id", pid);
+    await adminSupabase.from("product_images").delete().eq("product_id", pid);
+    const { error } = await adminSupabase.from("products").delete().eq("id", pid);
     if (error) throw error;
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);

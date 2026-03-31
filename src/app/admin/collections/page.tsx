@@ -1,3 +1,4 @@
+import { adminSupabase } from "@/lib/supabase/admin-client";
 import { getSupabase } from "@/lib/supabase/client";
 import { uploadPublicImage } from "@/lib/supabase/storage";
 import Image from "next/image";
@@ -57,8 +58,7 @@ export async function saveCollection(formData: FormData) {
   const title = formData.get("title")?.toString()?.trim() ?? "";
   const description = formData.get("description")?.toString() ?? "";
 
-  const supabase = getSupabase();
-  const { data: row, error: fetchError } = await supabase
+  const { data: row, error: fetchError } = await adminSupabase
     .from("collections")
     .select("id, hero_image_url")
     .eq("id", id)
@@ -85,7 +85,7 @@ export async function saveCollection(formData: FormData) {
     }
   }
 
-  const { error: updateError } = await supabase
+  const { error: updateError } = await adminSupabase
     .from("collections")
     .update({
       title,
@@ -128,7 +128,6 @@ export async function createCollection(formData: FormData) {
     );
   }
 
-  const supabase = getSupabase();
   const file = formData.get("heroImage");
   let hero_image_url: string | null = null;
   if (file instanceof File && file.size > 0) {
@@ -142,7 +141,7 @@ export async function createCollection(formData: FormData) {
     }
   }
 
-  const { error: insertError } = await supabase.from("collections").insert({
+  const { error: insertError } = await adminSupabase.from("collections").insert({
     title,
     slug: slugCurrent,
     description: description.trim() || null,
