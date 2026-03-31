@@ -128,11 +128,22 @@ export async function createProduct(
         price: Math.round(pricePence),
         collection_id: collectionId.trim(),
         hidden: !published,
-        compare_price: null,
       })
       .select("id")
       .single();
-    if (insErr) throw insErr;
+
+    console.log(
+      "[createProduct] insert result:",
+      JSON.stringify({ inserted, insErr }, null, 2),
+    );
+
+    if (insErr) {
+      return {
+        ok: false,
+        error: `Supabase error: ${insErr.message} (code: ${insErr.code}, details: ${insErr.details}, hint: ${insErr.hint})`,
+      };
+    }
+
     const productId = (inserted as { id: string }).id;
 
     if (variants.length > 0) {
