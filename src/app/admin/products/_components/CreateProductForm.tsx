@@ -62,6 +62,7 @@ export function CreateProductForm({
   const [published, setPublished] = useState(true);
   const [variants, setVariants] = useState<VariantDraft[]>([]);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -81,6 +82,7 @@ export function CreateProductForm({
     setPublished(true);
     setVariants([]);
     setImageFiles([]);
+    setUploadingImages(false);
     setError(null);
   }, [collections]);
 
@@ -152,30 +154,45 @@ export function CreateProductForm({
     });
 
     const imageUrls: string[] = [];
-    for (const file of imageFiles) {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/admin/upload-image", {
-        method: "POST",
-        body: formData,
-      });
-      const data = (await res.json().catch(() => null)) as {
-        url?: string;
-        error?: string;
-      } | null;
-      if (!res.ok) {
-        setError(
-          data?.error && typeof data.error === "string"
-            ? data.error
-            : `Image upload failed (${res.status})`,
-        );
+
+    if (imageFiles.length > 0) {
+      setUploadingImages(true);
+    }
+    try {
+      for (const file of imageFiles) {
+        console.log("Uploading image:", file.name, file.size, file.type);
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/api/admin/upload-image", {
+          method: "POST",
+          body: formData,
+        });
+        const data = (await res.json().catch(() => null)) as {
+          url?: string;
+          error?: string;
+        } | null;
+        console.log("Upload result:", res.status, data);
+        if (!res.ok) {
+          setError(
+            data?.error && typeof data.error === "string"
+              ? data.error
+              : `Image upload failed (${res.status})`,
+          );
+          return;
+        }
+        if (!data?.url || typeof data.url !== "string") {
+          setError("Invalid response from image upload.");
+          return;
+        }
+        imageUrls.push(data.url);
+      }
+
+      if (imageFiles.length > 0 && imageUrls.length === 0) {
+        setError("Image upload failed — please try again");
         return;
       }
-      if (!data?.url || typeof data.url !== "string") {
-        setError("Invalid response from image upload.");
-        return;
-      }
-      imageUrls.push(data.url);
+    } finally {
+      setUploadingImages(false);
     }
 
     startTransition(async () => {
@@ -331,6 +348,11 @@ export function CreateProductForm({
               }}
               className="mt-2 block w-full text-sm text-brand-text/80 file:mr-3 file:rounded-md file:border-0 file:bg-brand-bg file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-text"
             />
+            {uploadingImages ? (
+              <p className="mt-2 text-sm text-brand-text/80" aria-live="polite">
+                Uploading images...
+              </p>
+            ) : null}
             {imageFiles.length > 0 ? (
               <p className="mt-2 text-xs text-brand-text/60">
                 {imageFiles.length} file{imageFiles.length === 1 ? "" : "s"}{" "}
@@ -471,10 +493,18 @@ export function CreateProductForm({
           <div className="flex flex-wrap gap-3 border-t border-brand-text/10 pt-4">
             <button
               type="submit"
-              disabled={pending || collections.length === 0}
+              disabled={
+                pending ||
+                uploadingImages ||
+                collections.length === 0
+              }
               className="rounded-md bg-brand-primary px-4 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
-              {pending ? "Saving…" : "Save product"}
+              {uploadingImages
+                ? "Uploading images..."
+                : pending
+                  ? "Saving…"
+                  : "Save product"}
             </button>
           </div>
         </form>
