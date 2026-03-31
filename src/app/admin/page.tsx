@@ -4,7 +4,7 @@ import {
   getRecentOrders,
 } from "@/lib/admin/supabase-orders";
 import { formatGbp, formatOrderDate } from "@/lib/admin/format";
-import { getLowStockData, getProductCount } from "@/lib/admin/sanity-stock";
+import { getLowStockData, getProductCount } from "@/lib/admin/supabase-stock";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -44,7 +44,7 @@ export default async function AdminDashboardPage() {
         <StatCard
           label="Total Products"
           value={String(productCount)}
-          hint="Sanity"
+          hint="Supabase"
         />
         <StatCard
           label="Low Stock Items"

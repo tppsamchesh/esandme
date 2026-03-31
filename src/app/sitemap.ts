@@ -1,10 +1,9 @@
 import type { MetadataRoute } from "next";
-import { client } from "@/lib/sanity/client";
 import {
-  allBlogPostsQuery,
-  allCollectionsQuery,
-  allProductsQuery,
-} from "@/lib/sanity/queries.OLD";
+  fetchAllBlogPosts,
+  fetchAllCollectionsPublic,
+  fetchAllProductsPublic,
+} from "@/lib/supabase/queries";
 
 function getBaseUrl() {
   const raw =
@@ -12,16 +11,14 @@ function getBaseUrl() {
   return raw.replace(/\/$/, "");
 }
 
-type SlugRef = { slug?: { current?: string } | null };
-
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = getBaseUrl();
   const now = new Date();
 
   const [collections, products, posts] = await Promise.all([
-    client.fetch<SlugRef[]>(allCollectionsQuery),
-    client.fetch<SlugRef[]>(allProductsQuery),
-    client.fetch<SlugRef[]>(allBlogPostsQuery),
+    fetchAllCollectionsPublic(),
+    fetchAllProductsPublic(),
+    fetchAllBlogPosts(),
   ]);
 
   const staticEntries: MetadataRoute.Sitemap = [

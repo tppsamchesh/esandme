@@ -59,8 +59,8 @@ export function SiteSettingsSection({
     <section className="rounded-xl border border-brand-text/10 bg-white p-6 shadow-sm">
       <h2 className="font-heading text-xl text-brand-text">Site settings</h2>
       <p className="mt-1 text-sm text-brand-text/65">
-        Stored in Sanity as the <code className="text-xs">siteSettings</code>{" "}
-        document.
+        Stored in Supabase in the <code className="text-xs">site_settings</code>{" "}
+        table.
       </p>
 
       <div className="mt-6 space-y-4">
@@ -87,7 +87,7 @@ export function SiteSettingsSection({
             className="mt-1 w-full rounded-md border border-brand-text/20 px-3 py-2 text-sm"
           />
           <span className="mt-1 block text-xs text-brand-text/50">
-            Saved in pence in Sanity.
+            Saved in pence in Supabase.
           </span>
         </label>
       </div>

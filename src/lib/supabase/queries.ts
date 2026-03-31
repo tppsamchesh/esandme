@@ -1,6 +1,6 @@
 import { getSupabase } from "@/lib/supabase/client";
 
-/** Maps DB slug column to the shape pages expect from Sanity. */
+/** Maps DB slug column to the slug object shape used across the app. */
 export function slugRef(slug: string | null | undefined): { current: string } {
   return { current: slug ?? "" };
 }

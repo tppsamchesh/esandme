@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { PortableTextBlock } from "@portabletext/types";
-import { PortableText } from "next-sanity";
+import { PortableText } from "@portabletext/react";
 import { fetchBlogPostBySlug } from "@/lib/supabase/queries";
 import type { Metadata } from "next";
 

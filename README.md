@@ -7,9 +7,6 @@ Configure these in `.env.local` (or your host’s env settings):
 | Variable | Description |
 | --- | --- |
 | `NEXT_PUBLIC_SITE_URL` | Public site URL (e.g. `https://www.example.com`) |
-| `NEXT_PUBLIC_SANITY_PROJECT_ID` | Sanity project ID |
-| `NEXT_PUBLIC_SANITY_DATASET` | Sanity dataset name |
-| `SANITY_API_TOKEN` | Sanity API token (for server-side fetches where needed) |
 | `STRIPE_SECRET_KEY` | Stripe secret key (admin dashboard revenue, checkout) |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
