@@ -1,4 +1,3 @@
-import { adminSupabase } from "@/lib/supabase/admin-client";
 import { uploadPublicImage } from "@/lib/supabase/storage";
 import Image from "next/image";
 import type { Metadata } from "next";
@@ -18,6 +17,13 @@ type CollectionRow = {
   hero_image_url: string | null;
   created_at?: string;
 };
+
+function getApiOrigin(): string {
+  const site = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
+  if (site) return site;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return "http://localhost:3000";
+}
 
 function slugify(input: string): string {
   return input
@@ -39,6 +45,12 @@ function redirectCollectionsError(message: string, options?: { newForm?: boolean
   redirect(`/admin/collections?${params.toString()}`);
 }
 
+type ApiListJson = { data: CollectionRow[] | null; error: string | null };
+type ApiRowJson = {
+  data: CollectionRow | null;
+  error: string | null;
+};
+
 export async function saveCollection(formData: FormData) {
   "use server";
   const id = formData.get("id")?.toString()?.trim();
@@ -56,29 +68,11 @@ export async function saveCollection(formData: FormData) {
 
   const title = formData.get("title")?.toString()?.trim() ?? "";
   const description = formData.get("description")?.toString() ?? "";
-
-  const fetchRes = await adminSupabase
-    .from("collections")
-    .select("id, hero_image_url")
-    .eq("id", id)
-    .maybeSingle();
-  const { data: row, error: fetchError } = fetchRes;
-  console.log(
-    "[admin/collections] saveCollection select error (full):",
-    fetchError,
-  );
-
-  if (fetchError) {
-    redirectCollectionsError(
-      `Could not load collection: ${fetchError.message}`,
-    );
-  }
-  if (!row) {
-    redirectCollectionsError("Collection not found or you may not have access.");
-  }
+  const slug = formData.get("slug")?.toString()?.trim() ?? "";
+  let hero_image_url =
+    (formData.get("hero_image_url")?.toString() ?? "").trim() || null;
 
   const file = formData.get("heroImage");
-  let hero_image_url = (row as CollectionRow).hero_image_url;
   if (file instanceof File && file.size > 0) {
     try {
       hero_image_url = await uploadPublicImage(file, "collections");
@@ -89,22 +83,29 @@ export async function saveCollection(formData: FormData) {
     }
   }
 
-  const updateRes = await adminSupabase
-    .from("collections")
-    .update({
+  const origin = getApiOrigin();
+  const res = await fetch(`${origin}/api/admin/collections`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      id,
       title,
+      slug,
       description: description.trim() || null,
       hero_image_url,
-    })
-    .eq("id", id);
-  const { error: updateError } = updateRes;
-  console.log(
-    "[admin/collections] saveCollection update error (full):",
-    updateError,
-  );
+    }),
+  });
 
-  if (updateError) {
-    redirectCollectionsError(updateError.message);
+  const raw = await res.json().catch(() => null);
+  if (raw === null || typeof raw !== "object") {
+    redirectCollectionsError("Invalid response from collections API.");
+  }
+  const json = raw as ApiRowJson;
+
+  if (!res.ok || json.error) {
+    redirectCollectionsError(
+      json.error ?? `Update failed (${res.status})`,
+    );
   }
 
   revalidatePath("/admin/collections");
@@ -150,23 +151,30 @@ export async function createCollection(formData: FormData) {
     }
   }
 
-  console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
-  console.log('Service key exists:', !!process.env.SUPABASE_SERVICE_ROLE_KEY)
-
-  const insertRes = await adminSupabase.from("collections").insert({
-    title,
-    slug: slugCurrent,
-    description: description.trim() || null,
-    hero_image_url,
+  const origin = getApiOrigin();
+  const res = await fetch(`${origin}/api/admin/collections`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      title,
+      slug: slugCurrent,
+      description: description.trim() || null,
+      hero_image_url,
+    }),
   });
-  const { error: insertError } = insertRes;
-  console.log(
-    "[admin/collections] createCollection insert error (full):",
-    insertError,
-  );
 
-  if (insertError) {
-    redirectCollectionsError(insertError.message, { newForm: true });
+  const raw = await res.json().catch(() => null);
+  if (raw === null || typeof raw !== "object") {
+    redirectCollectionsError("Invalid response from collections API.", {
+      newForm: true,
+    });
+  }
+  const json = raw as ApiRowJson;
+
+  if (!res.ok || json.error) {
+    redirectCollectionsError(json.error ?? `Create failed (${res.status})`, {
+      newForm: true,
+    });
   }
 
   revalidatePath("/admin/collections");
@@ -182,18 +190,25 @@ export default async function AdminCollectionsPage({
   const showNew = sp.new === "1" || sp.new === "true";
   const queryError = sp.error?.trim();
 
-  const listRes = await adminSupabase
-    .from("collections")
-    .select("*")
-    .order("created_at", { ascending: true });
-  const { data: rowsData, error: listError } = listRes;
-  console.log(
-    "[admin/collections] page list select error (full):",
-    listError,
-  );
+  const origin = getApiOrigin();
+  const listRes = await fetch(`${origin}/api/admin/collections`, {
+    cache: "no-store",
+  });
 
-  const rows = (rowsData ?? []) as CollectionRow[];
-  const fetchErrorMessage = listError?.message;
+  let rows: CollectionRow[] = [];
+  let fetchErrorMessage: string | undefined;
+
+  try {
+    const listJson = (await listRes.json()) as ApiListJson;
+    if (!listRes.ok || listJson.error) {
+      fetchErrorMessage =
+        listJson.error ?? `Could not load collections (${listRes.status})`;
+    } else {
+      rows = (listJson.data ?? []) as CollectionRow[];
+    }
+  } catch {
+    fetchErrorMessage = "Could not parse collections API response.";
+  }
 
   return (
     <div className="p-6 md:p-8">
@@ -371,6 +386,12 @@ export default async function AdminCollectionsPage({
                   className="flex flex-1 flex-col gap-3 p-4"
                 >
                   <input type="hidden" name="id" value={c.id} />
+                  <input type="hidden" name="slug" value={c.slug ?? ""} />
+                  <input
+                    type="hidden"
+                    name="hero_image_url"
+                    value={c.hero_image_url ?? ""}
+                  />
                   <input
                     type="hidden"
                     name="redirectTo"
