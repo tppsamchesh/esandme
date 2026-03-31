@@ -16,6 +16,7 @@ type CollectionRow = {
   slug: string;
   description: string | null;
   hero_image_url: string | null;
+  created_at?: string;
 };
 
 function slugify(input: string): string {
@@ -30,59 +31,84 @@ function slugify(input: string): string {
     .replace(/^-|-$/g, "");
 }
 
+/** Redirect to admin collections with an error query (optionally keep the "new collection" form open). */
+function redirectCollectionsError(message: string, options?: { newForm?: boolean }) {
+  const params = new URLSearchParams();
+  if (options?.newForm) params.set("new", "1");
+  params.set("error", message);
+  redirect(`/admin/collections?${params.toString()}`);
+}
+
 export async function saveCollection(formData: FormData) {
   "use server";
   const id = formData.get("id")?.toString()?.trim();
   const redirectTo =
     formData.get("redirectTo")?.toString() || "/admin/collections";
+
   if (!id) {
-    redirect(redirectTo);
+    redirectCollectionsError("Missing collection id.");
   }
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    redirect(redirectTo);
+    redirectCollectionsError(
+      "Supabase is not configured (missing NEXT_PUBLIC_SUPABASE_URL).",
+    );
   }
 
   const title = formData.get("title")?.toString()?.trim() ?? "";
   const description = formData.get("description")?.toString() ?? "";
 
-  try {
-    const supabase = getSupabase();
-    const { data: row, error: fe } = await supabase
-      .from("collections")
-      .select("id, hero_image_url")
-      .eq("id", id)
-      .maybeSingle();
-    if (fe || !row) {
-      redirect(redirectTo);
-    }
+  const supabase = getSupabase();
+  const { data: row, error: fetchError } = await supabase
+    .from("collections")
+    .select("id, hero_image_url")
+    .eq("id", id)
+    .maybeSingle();
 
-    const file = formData.get("heroImage");
-    let hero_image_url = (row as CollectionRow).hero_image_url;
-    if (file instanceof File && file.size > 0) {
-      hero_image_url = await uploadPublicImage(file, "collections");
-    }
-
-    await supabase
-      .from("collections")
-      .update({
-        title,
-        description: description.trim() || null,
-        hero_image_url,
-      })
-      .eq("id", id);
-  } catch {
-    // Leave UI unchanged on failure; user can retry
+  if (fetchError) {
+    redirectCollectionsError(
+      `Could not load collection: ${fetchError.message}`,
+    );
   }
+  if (!row) {
+    redirectCollectionsError("Collection not found or you may not have access.");
+  }
+
+  const file = formData.get("heroImage");
+  let hero_image_url = (row as CollectionRow).hero_image_url;
+  if (file instanceof File && file.size > 0) {
+    try {
+      hero_image_url = await uploadPublicImage(file, "collections");
+    } catch (e) {
+      redirectCollectionsError(
+        e instanceof Error ? e.message : "Hero image upload failed.",
+      );
+    }
+  }
+
+  const { error: updateError } = await supabase
+    .from("collections")
+    .update({
+      title,
+      description: description.trim() || null,
+      hero_image_url,
+    })
+    .eq("id", id);
+
+  if (updateError) {
+    redirectCollectionsError(updateError.message);
+  }
+
   revalidatePath("/admin/collections");
   redirect(redirectTo);
 }
 
 export async function createCollection(formData: FormData) {
   "use server";
-  const redirectTo =
-    formData.get("redirectTo")?.toString() || "/admin/collections";
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    redirect(redirectTo);
+    redirectCollectionsError(
+      "Supabase is not configured (missing NEXT_PUBLIC_SUPABASE_URL).",
+      { newForm: true },
+    );
   }
 
   const title = formData.get("title")?.toString()?.trim() ?? "";
@@ -90,32 +116,43 @@ export async function createCollection(formData: FormData) {
   const description = formData.get("description")?.toString() ?? "";
 
   if (!title) {
-    redirect(redirectTo);
+    redirectCollectionsError("Title is required.", { newForm: true });
   }
   if (!slugCurrent) {
     slugCurrent = slugify(title);
   }
   if (!slugCurrent) {
-    redirect(redirectTo);
+    redirectCollectionsError(
+      "Could not generate a URL slug from the title.",
+      { newForm: true },
+    );
   }
 
-  try {
-    const supabase = getSupabase();
-    const file = formData.get("heroImage");
-    let hero_image_url: string | null = null;
-    if (file instanceof File && file.size > 0) {
+  const supabase = getSupabase();
+  const file = formData.get("heroImage");
+  let hero_image_url: string | null = null;
+  if (file instanceof File && file.size > 0) {
+    try {
       hero_image_url = await uploadPublicImage(file, "collections");
+    } catch (e) {
+      redirectCollectionsError(
+        e instanceof Error ? e.message : "Hero image upload failed.",
+        { newForm: true },
+      );
     }
-
-    await supabase.from("collections").insert({
-      title,
-      slug: slugCurrent,
-      description: description.trim() || null,
-      hero_image_url,
-    });
-  } catch {
-    // ignore; user can retry
   }
+
+  const { error: insertError } = await supabase.from("collections").insert({
+    title,
+    slug: slugCurrent,
+    description: description.trim() || null,
+    hero_image_url,
+  });
+
+  if (insertError) {
+    redirectCollectionsError(insertError.message, { newForm: true });
+  }
+
   revalidatePath("/admin/collections");
   redirect("/admin/collections");
 }
@@ -123,17 +160,20 @@ export async function createCollection(formData: FormData) {
 export default async function AdminCollectionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ new?: string }>;
+  searchParams: Promise<{ new?: string; error?: string }>;
 }) {
   const sp = await searchParams;
   const showNew = sp.new === "1" || sp.new === "true";
+  const queryError = sp.error?.trim();
 
   const supabase = getSupabase();
-  const { data: rowsData } = await supabase
+  const { data: rowsData, error: listError } = await supabase
     .from("collections")
-    .select("id, title, slug, description, hero_image_url")
-    .order("title");
+    .select("*")
+    .order("created_at", { ascending: true });
+
   const rows = (rowsData ?? []) as CollectionRow[];
+  const fetchErrorMessage = listError?.message;
 
   return (
     <div className="p-6 md:p-8">
@@ -162,6 +202,28 @@ export default async function AdminCollectionsPage({
           </Link>
         )}
       </div>
+
+      {queryError ? (
+        <div
+          className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900"
+          role="alert"
+        >
+          <p className="font-medium">Something went wrong</p>
+          <p className="mt-1 whitespace-pre-wrap break-words">{queryError}</p>
+        </div>
+      ) : null}
+
+      {fetchErrorMessage ? (
+        <div
+          className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+          role="status"
+        >
+          <p className="font-medium">Could not load collections</p>
+          <p className="mt-1 whitespace-pre-wrap break-words">
+            {fetchErrorMessage}
+          </p>
+        </div>
+      ) : null}
 
       {showNew ? (
         <form
@@ -244,7 +306,7 @@ export default async function AdminCollectionsPage({
         </p>
       </div>
 
-      {rows.length === 0 ? (
+      {!fetchErrorMessage && rows.length === 0 ? (
         <div className="mt-10 rounded-lg border border-brand-text/10 bg-white px-6 py-14 text-center shadow-sm">
           <p className="text-brand-text/85">
             No collections yet. Create one to group products on the storefront.
@@ -256,7 +318,9 @@ export default async function AdminCollectionsPage({
             New Collection
           </Link>
         </div>
-      ) : (
+      ) : null}
+
+      {!fetchErrorMessage && rows.length > 0 ? (
         <div className="mt-8 grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
           {rows.map((c) => {
             const heroThumb = c.hero_image_url;
@@ -347,7 +411,7 @@ export default async function AdminCollectionsPage({
             );
           })}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
