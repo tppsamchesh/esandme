@@ -151,6 +151,33 @@ export function CreateProductForm({
       };
     });
 
+    const imageUrls: string[] = [];
+    for (const file of imageFiles) {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/admin/upload-image", {
+        method: "POST",
+        body: formData,
+      });
+      const data = (await res.json().catch(() => null)) as {
+        url?: string;
+        error?: string;
+      } | null;
+      if (!res.ok) {
+        setError(
+          data?.error && typeof data.error === "string"
+            ? data.error
+            : `Image upload failed (${res.status})`,
+        );
+        return;
+      }
+      if (!data?.url || typeof data.url !== "string") {
+        setError("Invalid response from image upload.");
+        return;
+      }
+      imageUrls.push(data.url);
+    }
+
     startTransition(async () => {
       const res = await createProduct({
         title: title.trim(),
@@ -160,7 +187,7 @@ export function CreateProductForm({
         collectionId,
         published,
         variants: variantPayload,
-        imageFiles,
+        imageUrls,
       });
       if (!res.ok) {
         setError(res.error);

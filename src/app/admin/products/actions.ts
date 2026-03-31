@@ -1,7 +1,6 @@
 "use server";
 
-import { getSupabase } from "@/lib/supabase/client";
-import { uploadPublicImage } from "@/lib/supabase/storage";
+import { adminSupabase } from "@/lib/supabase/admin-client";
 import { revalidatePath } from "next/cache";
 
 export type SaveProductInput = {
@@ -23,7 +22,6 @@ export type SaveProductInput = {
 export async function saveProduct(
   input: SaveProductInput,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const supabase = getSupabase();
   const { id, title, description, pricePence, variants } = input;
 
   if (!title.trim()) {
@@ -35,7 +33,7 @@ export async function saveProduct(
   }
 
   try {
-    const { error: pe } = await supabase
+    const { error: pe } = await adminSupabase
       .from("products")
       .update({
         title: title.trim(),
@@ -58,7 +56,7 @@ export async function saveProduct(
       } else {
         row.price = null;
       }
-      const { error: ve } = await supabase
+      const { error: ve } = await adminSupabase
         .from("product_variants")
         .update(row)
         .eq("id", v._key)
@@ -91,13 +89,13 @@ export type CreateProductInput = {
   collectionId: string;
   published: boolean;
   variants: CreateProductVariantInput[];
-  imageFiles: File[];
+  /** Public URLs from /api/admin/upload-image — never pass File[] through server actions. */
+  imageUrls: string[];
 };
 
 export async function createProduct(
   input: CreateProductInput,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const supabase = getSupabase();
   const title = input.title.trim();
   const slugCurrent = input.slug.trim().toLowerCase();
   const description = input.description.trim();
@@ -116,12 +114,12 @@ export async function createProduct(
     return { ok: false, error: "Base price must be a valid amount." };
   }
 
-  const imageFiles = input.imageFiles.filter(
-    (f) => f instanceof File && f.size > 0,
+  const imageUrls = (input.imageUrls ?? []).filter(
+    (u) => typeof u === "string" && u.trim().length > 0,
   );
 
   try {
-    const { data: inserted, error: insErr } = await supabase
+    const { data: inserted, error: insErr } = await adminSupabase
       .from("products")
       .insert({
         title,
@@ -152,20 +150,21 @@ export async function createProduct(
         }
         return row;
       });
-      const { error: vErr } = await supabase
+      const { error: vErr } = await adminSupabase
         .from("product_variants")
         .insert(variantRows);
       if (vErr) throw vErr;
     }
 
     let sort = 0;
-    for (const file of imageFiles) {
-      const url = await uploadPublicImage(file, "products");
-      const { error: imgErr } = await supabase.from("product_images").insert({
-        product_id: productId,
-        url,
-        sort_order: sort++,
-      });
+    for (const url of imageUrls) {
+      const { error: imgErr } = await adminSupabase
+        .from("product_images")
+        .insert({
+          product_id: productId,
+          url: url.trim(),
+          sort_order: sort++,
+        });
       if (imgErr) throw imgErr;
     }
 
