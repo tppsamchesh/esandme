@@ -1,6 +1,5 @@
 "use server";
 
-import { markdownToPortableText } from "@/app/admin/blog/_lib/portable-text";
 import { getSupabase } from "@/lib/supabase/client";
 import { uploadPublicImage } from "@/lib/supabase/storage";
 import { revalidatePath } from "next/cache";
@@ -54,7 +53,7 @@ export async function createBlogPost(
   if (!title) return { ok: false, error: "Title is required." };
   if (!slug) return { ok: false, error: "Slug is required." };
 
-  const body = markdownToPortableText(input.bodyMarkdown);
+  const body = input.bodyMarkdown;
 
   let published_at: string | null = null;
   if (input.publish) {
@@ -102,7 +101,7 @@ export async function updateBlogPost(
   if (!title) return { ok: false, error: "Title is required." };
   if (!slug) return { ok: false, error: "Slug is required." };
 
-  const body = markdownToPortableText(input.bodyMarkdown);
+  const body = input.bodyMarkdown;
 
   let published_at: string | null = null;
   if (input.publish) {

@@ -6,7 +6,6 @@ import {
   uploadCoverImage,
   type SaveBlogPostInput,
 } from "@/app/admin/blog/actions";
-import { portableTextToEditorText } from "@/app/admin/blog/_lib/portable-text";
 import { slugifyTitle } from "@/app/admin/blog/_lib/slugify";
 import type { BlogPostDetail } from "@/app/admin/blog/_lib/fetch-posts";
 import Image from "next/image";
@@ -47,7 +46,7 @@ export function PostEditorForm({
   );
   const [excerpt, setExcerpt] = useState(initial?.excerpt ?? "");
   const [bodyMarkdown, setBodyMarkdown] = useState(
-    initial ? portableTextToEditorText(initial.body as never) : ""
+    initial && typeof initial.body === "string" ? initial.body : ""
   );
   const [seoTitle, setSeoTitle] = useState(initial?.seoTitle ?? "");
   const [seoDescription, setSeoDescription] = useState(

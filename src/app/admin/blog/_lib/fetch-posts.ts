@@ -1,5 +1,4 @@
 import { getSupabase } from "@/lib/supabase/client";
-import type { PortableTextBlock } from "@portabletext/types";
 
 export type BlogPostListRow = {
   _id: string;
@@ -48,7 +47,7 @@ export type BlogPostDetail = {
   publishedAt?: string | null;
   excerpt?: string | null;
   coverImage?: string | null;
-  body?: PortableTextBlock[] | PortableTextBlock | null;
+  body?: string | null;
   seoTitle?: string | null;
   seoDescription?: string | null;
 };
@@ -70,7 +69,7 @@ export async function fetchBlogPostById(
     published_at: string | null;
     excerpt: string | null;
     cover_image_url: string | null;
-    body: unknown;
+    body: string | null;
     seo_title: string | null;
     seo_description: string | null;
   };
@@ -81,7 +80,7 @@ export async function fetchBlogPostById(
     publishedAt: row.published_at,
     excerpt: row.excerpt,
     coverImage: row.cover_image_url,
-    body: row.body as BlogPostDetail["body"],
+    body: row.body,
     seoTitle: row.seo_title,
     seoDescription: row.seo_description,
   };
