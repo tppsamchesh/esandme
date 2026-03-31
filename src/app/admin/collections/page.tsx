@@ -1,22 +1,17 @@
+"use client";
+
 import Image from "next/image";
-import type { Metadata } from "next";
 import Link from "next/link";
-import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useState,
+  type FormEvent,
+} from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 const COLLECTIONS_API_PATH = "/api/admin/collections";
-
-async function fetchCollectionsApi(init?: RequestInit) {
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
-  const proto = h.get("x-forwarded-proto") ?? "http";
-  return fetch(`${proto}://${host}${COLLECTIONS_API_PATH}`, init);
-}
-
-export const metadata: Metadata = {
-  title: "Collections",
-};
 
 type CollectionRow = {
   id: string;
@@ -39,141 +34,447 @@ function slugify(input: string): string {
     .replace(/^-|-$/g, "");
 }
 
-/** Redirect to admin collections with an error query (optionally keep the "new collection" form open). */
-function redirectCollectionsError(message: string, options?: { newForm?: boolean }) {
-  const params = new URLSearchParams();
-  if (options?.newForm) params.set("new", "1");
-  params.set("error", message);
-  redirect(`/admin/collections?${params.toString()}`);
-}
-
 type ApiListJson = { data: CollectionRow[] | null; error: string | null };
 type ApiRowJson = {
   data: CollectionRow | null;
   error: string | null;
 };
 
-export async function saveCollection(formData: FormData) {
-  "use server";
-  const id = formData.get("id")?.toString()?.trim();
-  const redirectTo =
-    formData.get("redirectTo")?.toString() || "/admin/collections";
-
-  if (!id) {
-    redirectCollectionsError("Missing collection id.");
-  }
-
-  const title = formData.get("title")?.toString()?.trim() ?? "";
-  const description = formData.get("description")?.toString() ?? "";
-  const slug = formData.get("slug")?.toString()?.trim() ?? "";
-  const hero_image_url =
-    (formData.get("hero_image_url")?.toString() ?? "").trim() || null;
-
-  const res = await fetchCollectionsApi({
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      id,
-      title,
-      slug,
-      description: description.trim() || null,
-      hero_image_url,
-    }),
-  });
-
-  const raw = await res.json().catch(() => null);
-  if (raw === null || typeof raw !== "object") {
-    redirectCollectionsError("Invalid response from collections API.");
-  }
-  const json = raw as ApiRowJson;
-
-  if (!res.ok || json.error) {
-    redirectCollectionsError(
-      json.error ?? `Update failed (${res.status})`,
-    );
-  }
-
-  revalidatePath("/admin/collections");
-  redirect(redirectTo);
+function buildStorageFilename(originalName: string): string {
+  const ext =
+    originalName.includes(".") && originalName.split(".").pop()
+      ? originalName.split(".").pop()!.replace(/[^a-zA-Z0-9]/g, "") || "jpg"
+      : "jpg";
+  return `collections/${Date.now()}-${Math.random().toString(36).slice(2, 12)}.${ext}`;
 }
 
-export async function createCollection(formData: FormData) {
-  "use server";
-
-  const title = formData.get("title")?.toString()?.trim() ?? "";
-  let slugCurrent = formData.get("slug")?.toString()?.trim() ?? "";
-  const description = formData.get("description")?.toString() ?? "";
-
-  if (!title) {
-    redirectCollectionsError("Title is required.", { newForm: true });
+async function uploadHeroImage(file: File): Promise<string> {
+  const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!base || !anon) {
+    throw new Error("Missing Supabase URL or anon key.");
   }
-  if (!slugCurrent) {
-    slugCurrent = slugify(title);
+  const filename = buildStorageFilename(file.name);
+  const res = await fetch(
+    `${base}/storage/v1/object/product-images/${filename}`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${anon}`,
+        "Content-Type": file.type,
+        "x-upsert": "true",
+      },
+      body: file,
+    },
+  );
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(t || `Upload failed (${res.status})`);
   }
-  if (!slugCurrent) {
-    redirectCollectionsError(
-      "Could not generate a URL slug from the title.",
-      { newForm: true },
-    );
-  }
-
-  const hero_image_url: string | null = null;
-
-  const res = await fetchCollectionsApi({
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      title,
-      slug: slugCurrent,
-      description: description.trim() || null,
-      hero_image_url,
-    }),
-  });
-
-  const raw = await res.json().catch(() => null);
-  if (raw === null || typeof raw !== "object") {
-    redirectCollectionsError("Invalid response from collections API.", {
-      newForm: true,
-    });
-  }
-  const json = raw as ApiRowJson;
-
-  if (!res.ok || json.error) {
-    redirectCollectionsError(json.error ?? `Create failed (${res.status})`, {
-      newForm: true,
-    });
-  }
-
-  revalidatePath("/admin/collections");
-  redirect("/admin/collections");
+  return `${base}/storage/v1/object/public/product-images/${filename}`;
 }
 
-export default async function AdminCollectionsPage({
-  searchParams,
+function HeroImageField({
+  initialUrl,
+  onUrlChange,
+  inputId,
 }: {
-  searchParams: Promise<{ new?: string; error?: string }>;
+  initialUrl: string | null;
+  onUrlChange: (url: string | null) => void;
+  inputId: string;
 }) {
-  const sp = await searchParams;
-  const showNew = sp.new === "1" || sp.new === "true";
-  const queryError = sp.error?.trim();
+  const [preview, setPreview] = useState<string | null>(initialUrl);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
-  const listRes = await fetchCollectionsApi({
-    cache: "no-store",
-  });
+  useEffect(() => {
+    setPreview(initialUrl);
+  }, [initialUrl]);
 
-  let rows: CollectionRow[] = [];
-  let fetchErrorMessage: string | undefined;
-
-  try {
-    const listJson = (await listRes.json()) as ApiListJson;
-    if (!listRes.ok || listJson.error) {
-      fetchErrorMessage =
-        listJson.error ?? `Could not load collections (${listRes.status})`;
-    } else {
-      rows = listJson.data ?? [];
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const publicUrl = await uploadHeroImage(file);
+      setPreview(publicUrl);
+      onUrlChange(publicUrl);
+    } catch (err) {
+      setUploadError(
+        err instanceof Error ? err.message : "Upload failed.",
+      );
+    } finally {
+      setUploading(false);
+      e.target.value = "";
     }
-  } catch {
-    fetchErrorMessage = "Could not parse collections API response.";
+  }
+
+  return (
+    <div>
+      {preview ? (
+        <div className="relative mt-2 h-32 w-full max-w-lg overflow-hidden rounded-md border border-brand-text/15 bg-brand-bg">
+          <Image
+            src={preview}
+            alt=""
+            fill
+            className="object-cover"
+            sizes="(max-width: 640px) 100vw, 33vw"
+            unoptimized={
+              preview.startsWith("http") && !preview.includes("localhost")
+            }
+          />
+        </div>
+      ) : null}
+      <p className="mt-1 text-[11px] text-brand-text/50">
+        {preview
+          ? "Choose another file to replace."
+          : "Choose a file to upload a hero image."}
+      </p>
+      <input
+        id={inputId}
+        type="file"
+        accept="image/*"
+        disabled={uploading}
+        onChange={handleFileChange}
+        className="mt-2 block w-full max-w-lg text-sm file:mr-3 file:rounded file:border-0 file:bg-[#8BA888] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white"
+      />
+      {uploading ? (
+        <p className="mt-1 text-xs text-brand-text/60">Uploading…</p>
+      ) : null}
+      {uploadError ? (
+        <p
+          className="mt-2 text-sm text-red-800"
+          role="alert"
+        >
+          {uploadError}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function CollectionCard({
+  collection: c,
+  onRemoved,
+  onUpdated,
+}: {
+  collection: CollectionRow;
+  onRemoved: (id: string) => void;
+  onUpdated: (row: CollectionRow) => void;
+}) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [heroUrl, setHeroUrl] = useState<string | null>(c.hero_image_url);
+
+  useEffect(() => {
+    setHeroUrl(c.hero_image_url);
+  }, [c.hero_image_url]);
+
+  async function handleDelete() {
+    setDeleteError(null);
+    setDeleting(true);
+    try {
+      const res = await fetch(COLLECTIONS_API_PATH, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: c.id }),
+      });
+      const raw = await res.json().catch(() => null);
+      if (!res.ok) {
+        const err =
+          raw && typeof raw === "object" && "error" in raw
+            ? String((raw as { error?: string }).error)
+            : `Delete failed (${res.status})`;
+        setDeleteError(err);
+        return;
+      }
+      onRemoved(c.id);
+      setConfirmDelete(false);
+    } catch {
+      setDeleteError("Network error while deleting.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function handleSave(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setSaveError(null);
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    const title = String(fd.get("title") ?? "").trim();
+    const description = String(fd.get("description") ?? "");
+    if (!title) {
+      setSaveError("Title is required.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(COLLECTIONS_API_PATH, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: c.id,
+          title,
+          slug: c.slug,
+          description: description.trim() || null,
+          hero_image_url: heroUrl,
+        }),
+      });
+      const raw = await res.json().catch(() => null);
+      if (raw === null || typeof raw !== "object") {
+        setSaveError("Invalid response from collections API.");
+        return;
+      }
+      const json = raw as ApiRowJson;
+      if (!res.ok || json.error) {
+        setSaveError(json.error ?? `Update failed (${res.status})`);
+        return;
+      }
+      if (json.data) onUpdated(json.data);
+    } catch {
+      setSaveError("Network error while saving.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const heroThumb = heroUrl;
+  const slugText = c.slug ?? "";
+
+  return (
+    <div className="flex flex-col overflow-hidden rounded-xl border border-brand-text/10 bg-white text-left shadow-sm transition-shadow hover:border-brand-primary/40 hover:shadow-md">
+      <div className="relative aspect-[16/10] w-full bg-brand-bg">
+        {heroThumb ? (
+          <Image
+            src={heroThumb}
+            alt=""
+            fill
+            className="object-cover"
+            sizes="(max-width: 640px) 100vw, 33vw"
+            unoptimized={
+              heroThumb.startsWith("http") && !heroThumb.includes("localhost")
+            }
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center text-sm text-brand-text/40">
+            No hero image
+          </div>
+        )}
+      </div>
+      <form
+        onSubmit={handleSave}
+        className="flex flex-1 flex-col gap-3 p-4"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          {slugText ? (
+            <p className="font-mono text-[11px] text-brand-text/45">
+              /collections/{slugText}
+            </p>
+          ) : (
+            <span />
+          )}
+          {!confirmDelete ? (
+            <button
+              type="button"
+              onClick={() => {
+                setConfirmDelete(true);
+                setDeleteError(null);
+              }}
+              className="shrink-0 rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-900 hover:bg-red-100"
+            >
+              Delete
+            </button>
+          ) : null}
+        </div>
+
+        {confirmDelete ? (
+          <div
+            className="rounded-lg border border-red-200 bg-red-50/80 px-3 py-3 text-sm text-red-950"
+            role="alert"
+          >
+            <p>
+              Delete <span className="font-semibold">{c.title}</span>? This
+              cannot be undone.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={handleDelete}
+                className="rounded-md bg-red-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-800 disabled:opacity-60"
+              >
+                {deleting ? "Deleting…" : "Confirm"}
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => {
+                  setConfirmDelete(false);
+                  setDeleteError(null);
+                }}
+                className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-900 hover:bg-red-50"
+              >
+                Cancel
+              </button>
+            </div>
+            {deleteError ? (
+              <p className="mt-2 text-sm text-red-800">{deleteError}</p>
+            ) : null}
+          </div>
+        ) : null}
+
+        <label className="block">
+          <span className="text-xs font-medium uppercase tracking-wide text-brand-text/60">
+            Title
+          </span>
+          <input
+            name="title"
+            type="text"
+            defaultValue={c.title ?? ""}
+            required
+            className="mt-1 w-full rounded-md border border-brand-text/20 bg-white px-3 py-2 text-sm text-brand-text outline-none ring-brand-primary focus:ring-2"
+            autoComplete="off"
+          />
+        </label>
+        <label className="block flex-1">
+          <span className="text-xs font-medium uppercase tracking-wide text-brand-text/60">
+            Description
+          </span>
+          <textarea
+            name="description"
+            rows={4}
+            defaultValue={c.description ?? ""}
+            className="mt-1 w-full rounded-md border border-brand-text/20 bg-white px-3 py-2 text-sm text-brand-text outline-none ring-brand-primary focus:ring-2"
+          />
+        </label>
+        <div>
+          <span className="text-xs font-medium uppercase tracking-wide text-brand-text/60">
+            Hero image
+          </span>
+          <HeroImageField
+            initialUrl={heroUrl}
+            onUrlChange={setHeroUrl}
+            inputId={`hero-${c.id}`}
+          />
+        </div>
+        {saveError ? (
+          <p className="text-sm text-red-800" role="alert">
+            {saveError}
+          </p>
+        ) : null}
+        <button
+          type="submit"
+          disabled={saving}
+          className="mt-1 rounded-md bg-brand-primary px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
+        >
+          {saving ? "Saving…" : "Save changes"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function AdminCollectionsContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const showNew =
+    searchParams.get("new") === "1" || searchParams.get("new") === "true";
+  const queryError = searchParams.get("error")?.trim();
+
+  const [rows, setRows] = useState<CollectionRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchErrorMessage, setFetchErrorMessage] = useState<
+    string | undefined
+  >();
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [newHeroUrl, setNewHeroUrl] = useState<string | null>(null);
+
+  const loadCollections = useCallback(async () => {
+    setLoading(true);
+    setFetchErrorMessage(undefined);
+    try {
+      const listRes = await fetch(COLLECTIONS_API_PATH, { cache: "no-store" });
+      const listJson = (await listRes.json()) as ApiListJson;
+      if (!listRes.ok || listJson.error) {
+        setFetchErrorMessage(
+          listJson.error ?? `Could not load collections (${listRes.status})`,
+        );
+        setRows([]);
+      } else {
+        setRows(listJson.data ?? []);
+      }
+    } catch {
+      setFetchErrorMessage("Could not parse collections API response.");
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadCollections();
+  }, [loadCollections]);
+
+  async function handleCreate(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setCreateError(null);
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    const title = String(fd.get("title") ?? "").trim();
+    let slugCurrent = String(fd.get("slug") ?? "").trim();
+    const description = String(fd.get("description") ?? "");
+
+    if (!title) {
+      setCreateError("Title is required.");
+      return;
+    }
+    if (!slugCurrent) {
+      slugCurrent = slugify(title);
+    }
+    if (!slugCurrent) {
+      setCreateError("Could not generate a URL slug from the title.");
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const res = await fetch(COLLECTIONS_API_PATH, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          slug: slugCurrent,
+          description: description.trim() || null,
+          hero_image_url: newHeroUrl,
+        }),
+      });
+      const raw = await res.json().catch(() => null);
+      if (raw === null || typeof raw !== "object") {
+        setCreateError("Invalid response from collections API.");
+        return;
+      }
+      const json = raw as ApiRowJson;
+      if (!res.ok || json.error) {
+        setCreateError(json.error ?? `Create failed (${res.status})`);
+        return;
+      }
+      if (json.data) {
+        setRows((prev) => [...prev, json.data!]);
+      }
+      setNewHeroUrl(null);
+      form.reset();
+      router.push("/admin/collections");
+    } catch {
+      setCreateError("Network error while creating.");
+    } finally {
+      setCreating(false);
+    }
   }
 
   return (
@@ -226,13 +527,15 @@ export default async function AdminCollectionsPage({
         </div>
       ) : null}
 
+      {loading ? (
+        <p className="mt-8 text-sm text-brand-text/70">Loading collections…</p>
+      ) : null}
+
       {showNew ? (
         <form
-          action={createCollection}
-          encType="multipart/form-data"
+          onSubmit={handleCreate}
           className="mt-8 space-y-4 rounded-xl border border-brand-text/10 bg-white p-5 shadow-sm"
         >
-          <input type="hidden" name="redirectTo" value="/admin/collections" />
           <h2 className="font-heading text-xl text-brand-text">
             New collection
           </h2>
@@ -276,22 +579,27 @@ export default async function AdminCollectionsPage({
               placeholder="Short intro for the collection page…"
             />
           </label>
-          <label className="block">
+          <div>
             <span className="text-xs font-medium uppercase tracking-wide text-brand-text/60">
               Hero image
             </span>
-            <input
-              name="heroImage"
-              type="file"
-              accept="image/*"
-              className="mt-1 block w-full max-w-lg text-sm file:mr-3 file:rounded file:border-0 file:bg-[#8BA888] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white"
+            <HeroImageField
+              initialUrl={newHeroUrl}
+              onUrlChange={setNewHeroUrl}
+              inputId="hero-new"
             />
-          </label>
+          </div>
+          {createError ? (
+            <p className="text-sm text-red-800" role="alert">
+              {createError}
+            </p>
+          ) : null}
           <button
             type="submit"
-            className="rounded-md bg-[#1C1C1C] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+            disabled={creating}
+            className="rounded-md bg-[#1C1C1C] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
           >
-            Create collection
+            {creating ? "Creating…" : "Create collection"}
           </button>
         </form>
       ) : null}
@@ -307,7 +615,7 @@ export default async function AdminCollectionsPage({
         </p>
       </div>
 
-      {!fetchErrorMessage && rows.length === 0 ? (
+      {!fetchErrorMessage && !loading && rows.length === 0 ? (
         <div className="mt-10 rounded-lg border border-brand-text/10 bg-white px-6 py-14 text-center shadow-sm">
           <p className="text-brand-text/85">
             No collections yet. Create one to group products on the storefront.
@@ -321,104 +629,38 @@ export default async function AdminCollectionsPage({
         </div>
       ) : null}
 
-      {!fetchErrorMessage && rows.length > 0 ? (
+      {!fetchErrorMessage && !loading && rows.length > 0 ? (
         <div className="mt-8 grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-          {rows.map((c) => {
-            const heroThumb = c.hero_image_url;
-            const slugText = c.slug ?? "";
-            return (
-              <div
-                key={c.id}
-                className="flex flex-col overflow-hidden rounded-xl border border-brand-text/10 bg-white text-left shadow-sm transition-shadow hover:border-brand-primary/40 hover:shadow-md"
-              >
-                <div className="relative aspect-[16/10] w-full bg-brand-bg">
-                  {heroThumb ? (
-                    <Image
-                      src={heroThumb}
-                      alt=""
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 640px) 100vw, 33vw"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-sm text-brand-text/40">
-                      No hero image
-                    </div>
-                  )}
-                </div>
-                <form
-                  action={saveCollection}
-                  encType="multipart/form-data"
-                  className="flex flex-1 flex-col gap-3 p-4"
-                >
-                  <input type="hidden" name="id" value={c.id} />
-                  <input type="hidden" name="slug" value={c.slug ?? ""} />
-                  <input
-                    type="hidden"
-                    name="hero_image_url"
-                    value={c.hero_image_url ?? ""}
-                  />
-                  <input
-                    type="hidden"
-                    name="redirectTo"
-                    value="/admin/collections"
-                  />
-                  {slugText ? (
-                    <p className="font-mono text-[11px] text-brand-text/45">
-                      /collections/{slugText}
-                    </p>
-                  ) : null}
-                  <label className="block">
-                    <span className="text-xs font-medium uppercase tracking-wide text-brand-text/60">
-                      Title
-                    </span>
-                    <input
-                      name="title"
-                      type="text"
-                      defaultValue={c.title ?? ""}
-                      required
-                      className="mt-1 w-full rounded-md border border-brand-text/20 bg-white px-3 py-2 text-sm text-brand-text outline-none ring-brand-primary focus:ring-2"
-                      autoComplete="off"
-                    />
-                  </label>
-                  <label className="block flex-1">
-                    <span className="text-xs font-medium uppercase tracking-wide text-brand-text/60">
-                      Description
-                    </span>
-                    <textarea
-                      name="description"
-                      rows={4}
-                      defaultValue={c.description ?? ""}
-                      className="mt-1 w-full rounded-md border border-brand-text/20 bg-white px-3 py-2 text-sm text-brand-text outline-none ring-brand-primary focus:ring-2"
-                    />
-                  </label>
-                  <div>
-                    <span className="text-xs font-medium uppercase tracking-wide text-brand-text/60">
-                      Hero image
-                    </span>
-                    <p className="mt-1 text-[11px] text-brand-text/50">
-                      Choose a file to replace the hero. Leave empty to keep the
-                      current image.
-                    </p>
-                    <input
-                      name="heroImage"
-                      type="file"
-                      accept="image/*"
-                      className="mt-2 block w-full text-sm file:mr-3 file:rounded file:border-0 file:bg-[#8BA888] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    className="mt-1 rounded-md bg-brand-primary px-3 py-2 text-sm font-medium text-white hover:opacity-90"
-                  >
-                    Save changes
-                  </button>
-                </form>
-              </div>
-            );
-          })}
+          {rows.map((c) => (
+            <CollectionCard
+              key={c.id}
+              collection={c}
+              onRemoved={(id) =>
+                setRows((prev) => prev.filter((row) => row.id !== id))
+              }
+              onUpdated={(row) =>
+                setRows((prev) =>
+                  prev.map((x) => (x.id === row.id ? row : x)),
+                )
+              }
+            />
+          ))}
         </div>
       ) : null}
     </div>
+  );
+}
+
+export default function AdminCollectionsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-6 md:p-8 text-sm text-brand-text/70">
+          Loading…
+        </div>
+      }
+    >
+      <AdminCollectionsContent />
+    </Suspense>
   );
 }
