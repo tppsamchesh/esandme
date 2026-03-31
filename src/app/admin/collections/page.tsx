@@ -40,38 +40,25 @@ type ApiRowJson = {
   error: string | null;
 };
 
-function buildStorageFilename(originalName: string): string {
-  const ext =
-    originalName.includes(".") && originalName.split(".").pop()
-      ? originalName.split(".").pop()!.replace(/[^a-zA-Z0-9]/g, "") || "jpg"
-      : "jpg";
-  return `collections/${Date.now()}-${Math.random().toString(36).slice(2, 12)}.${ext}`;
-}
-
 async function uploadHeroImage(file: File): Promise<string> {
-  const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!base || !anon) {
-    throw new Error("Missing Supabase URL or anon key.");
-  }
-  const filename = buildStorageFilename(file.name);
-  const res = await fetch(
-    `${base}/storage/v1/object/product-images/${filename}`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${anon}`,
-        "Content-Type": file.type,
-        "x-upsert": "true",
-      },
-      body: file,
-    },
-  );
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch("/api/admin/upload-image", {
+    method: "POST",
+    body: formData,
+  });
+  const data = (await res.json().catch(() => null)) as
+    | { url?: string; error?: string }
+    | null;
   if (!res.ok) {
-    const t = await res.text().catch(() => "");
-    throw new Error(t || `Upload failed (${res.status})`);
+    throw new Error(
+      data?.error ?? `Upload failed (${res.status})`,
+    );
   }
-  return `${base}/storage/v1/object/public/product-images/${filename}`;
+  if (!data?.url) {
+    throw new Error("Invalid upload response");
+  }
+  return data.url;
 }
 
 function HeroImageField({
