@@ -1,6 +1,5 @@
 import { PostEditorForm } from "@/app/admin/blog/_components/PostEditorForm";
 import { fetchBlogPostById } from "@/app/admin/blog/_lib/fetch-posts";
-import { urlFor } from "@/lib/sanity/client";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
@@ -18,14 +17,8 @@ export default async function AdminBlogEditPage({ params }: Props) {
   const post = await fetchBlogPostById(id);
   if (!post) notFound();
 
-  let initialCoverUrl: string | null = null;
-  if (post.coverImage) {
-    try {
-      initialCoverUrl = urlFor(post.coverImage).width(900).url();
-    } catch {
-      initialCoverUrl = null;
-    }
-  }
+  const initialCoverUrl =
+    typeof post.coverImage === "string" ? post.coverImage : null;
 
   return (
     <div className="p-6 md:p-8">

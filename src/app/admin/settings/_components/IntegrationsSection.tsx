@@ -1,5 +1,4 @@
 export type IntegrationKey =
-  | "sanity"
   | "stripe"
   | "supabase"
   | "shipstation"
@@ -11,12 +10,11 @@ const ROWS: {
   label: string;
   envVar: string;
 }[] = [
-  { key: "sanity", label: "Sanity", envVar: "SANITY_API_TOKEN" },
   { key: "stripe", label: "Stripe", envVar: "STRIPE_SECRET_KEY" },
   {
     key: "supabase",
     label: "Supabase",
-    envVar: "NEXT_PUBLIC_SUPABASE_URL",
+    envVar: "NEXT_PUBLIC_SUPABASE_URL (+ ANON KEY)",
   },
   { key: "shipstation", label: "ShipStation", envVar: "SHIPSTATION_API_KEY" },
   { key: "resend", label: "Resend", envVar: "RESEND_API_KEY" },

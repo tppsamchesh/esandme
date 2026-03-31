@@ -1,14 +1,4 @@
-import { client } from "@/lib/sanity/client";
-import { groq } from "next-sanity";
-
-const query = groq`
-  *[_type == "siteSettings"][0] {
-    _id,
-    announcementBar,
-    freeDeliveryThreshold,
-    nav[]{ _key, label, href }
-  }
-`;
+import { getSupabase } from "@/lib/supabase/client";
 
 export type NavLink = {
   _key: string;
@@ -24,5 +14,26 @@ export type SiteSettingsDoc = {
 };
 
 export async function fetchSiteSettings(): Promise<SiteSettingsDoc | null> {
-  return client.fetch<SiteSettingsDoc | null>(query);
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from("site_settings")
+    .select("id, announcement_bar, free_delivery_threshold, nav")
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) return null;
+  const row = data as {
+    id: string;
+    announcement_bar: string | null;
+    free_delivery_threshold: number | null;
+    nav: unknown;
+  };
+  const nav = Array.isArray(row.nav)
+    ? (row.nav as NavLink[])
+    : [];
+  return {
+    _id: row.id,
+    announcementBar: row.announcement_bar,
+    freeDeliveryThreshold: row.free_delivery_threshold,
+    nav,
+  };
 }

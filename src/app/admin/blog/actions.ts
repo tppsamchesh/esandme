@@ -1,7 +1,8 @@
 "use server";
 
 import { markdownToPortableText } from "@/app/admin/blog/_lib/portable-text";
-import { client } from "@/lib/sanity/client";
+import { getSupabase } from "@/lib/supabase/client";
+import { uploadPublicImage } from "@/lib/supabase/storage";
 import { revalidatePath } from "next/cache";
 
 function revalidateBlog() {
@@ -12,23 +13,18 @@ function revalidateBlog() {
 export async function uploadCoverImage(
   formData: FormData
 ): Promise<
-  { ok: true; assetId: string; url: string } | { ok: false; error: string }
+  { ok: true; url: string } | { ok: false; error: string }
 > {
-  if (!process.env.SANITY_API_TOKEN) {
-    return { ok: false, error: "SANITY_API_TOKEN is not configured." };
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    return { ok: false, error: "Supabase is not configured." };
   }
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
     return { ok: false, error: "No image file provided." };
   }
   try {
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const asset = await client.assets.upload("image", buffer, {
-      filename: file.name,
-      contentType: file.type || "image/jpeg",
-    });
-    const url = asset.url ?? "";
-    return { ok: true, assetId: asset._id, url };
+    const url = await uploadPublicImage(file, "blog");
+    return { ok: true, url };
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
     return { ok: false, error: message };
@@ -44,14 +40,14 @@ export type SaveBlogPostInput = {
   seoDescription: string;
   publishedAt: string | null;
   publish: boolean;
-  coverAssetId: string | null;
+  coverImageUrl: string | null;
 };
 
 export async function createBlogPost(
   input: SaveBlogPostInput
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
-  if (!process.env.SANITY_API_TOKEN) {
-    return { ok: false, error: "SANITY_API_TOKEN is not configured." };
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    return { ok: false, error: "Supabase is not configured." };
   }
   const title = input.title.trim();
   const slug = input.slug.trim().toLowerCase();
@@ -60,38 +56,34 @@ export async function createBlogPost(
 
   const body = markdownToPortableText(input.bodyMarkdown);
 
-  let publishedAt: string | undefined;
+  let published_at: string | null = null;
   if (input.publish) {
-    publishedAt =
+    published_at =
       input.publishedAt?.trim() ||
       new Date().toISOString();
   }
 
   try {
-    const doc = await client.create({
-      _type: "blogPost",
-      title,
-      slug: { _type: "slug", current: slug } as const,
-      ...(publishedAt ? { publishedAt } : {}),
-      excerpt: input.excerpt.trim() || undefined,
-      ...(input.coverAssetId
-        ? {
-            coverImage: {
-              _type: "image",
-              asset: {
-                _type: "reference",
-                _ref: input.coverAssetId,
-              },
-            },
-          }
-        : {}),
-      body,
-      seoTitle: input.seoTitle.trim() || undefined,
-      seoDescription: input.seoDescription.trim() || undefined,
-    });
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from("blog_posts")
+      .insert({
+        title,
+        slug,
+        published_at,
+        excerpt: input.excerpt.trim() || null,
+        cover_image_url: input.coverImageUrl,
+        body,
+        seo_title: input.seoTitle.trim() || null,
+        seo_description: input.seoDescription.trim() || null,
+      })
+      .select("id")
+      .single();
+    if (error) throw error;
+    if (!data?.id) throw new Error("No id returned");
 
     revalidateBlog();
-    return { ok: true, id: doc._id };
+    return { ok: true, id: data.id as string };
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
     return { ok: false, error: message };
@@ -102,8 +94,8 @@ export async function updateBlogPost(
   id: string,
   input: SaveBlogPostInput
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!process.env.SANITY_API_TOKEN) {
-    return { ok: false, error: "SANITY_API_TOKEN is not configured." };
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    return { ok: false, error: "Supabase is not configured." };
   }
   const title = input.title.trim();
   const slug = input.slug.trim().toLowerCase();
@@ -112,44 +104,31 @@ export async function updateBlogPost(
 
   const body = markdownToPortableText(input.bodyMarkdown);
 
-  let publishedAt: string | null | undefined = undefined;
+  let published_at: string | null = null;
   if (input.publish) {
-    publishedAt =
+    published_at =
       input.publishedAt?.trim() ||
       new Date().toISOString();
   } else {
-    publishedAt = null;
+    published_at = null;
   }
 
   try {
-    let mutation = client.patch(id).set({
-      title,
-      slug: { current: slug },
-      excerpt: input.excerpt.trim() || undefined,
-      body,
-      seoTitle: input.seoTitle.trim() || undefined,
-      seoDescription: input.seoDescription.trim() || undefined,
-    });
-
-    if (publishedAt === null) {
-      mutation = mutation.unset(["publishedAt"]);
-    } else if (publishedAt) {
-      mutation = mutation.set({ publishedAt });
-    }
-
-    if (input.coverAssetId) {
-      mutation = mutation.set({
-        coverImage: {
-          _type: "image",
-          asset: {
-            _type: "reference",
-            _ref: input.coverAssetId,
-          },
-        },
-      });
-    }
-
-    await mutation.commit();
+    const supabase = getSupabase();
+    const { error } = await supabase
+      .from("blog_posts")
+      .update({
+        title,
+        slug,
+        excerpt: input.excerpt.trim() || null,
+        body,
+        seo_title: input.seoTitle.trim() || null,
+        seo_description: input.seoDescription.trim() || null,
+        published_at,
+        cover_image_url: input.coverImageUrl,
+      })
+      .eq("id", id);
+    if (error) throw error;
 
     revalidateBlog();
     return { ok: true };
@@ -162,11 +141,13 @@ export async function updateBlogPost(
 export async function deleteBlogPost(
   id: string
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!process.env.SANITY_API_TOKEN) {
-    return { ok: false, error: "SANITY_API_TOKEN is not configured." };
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    return { ok: false, error: "Supabase is not configured." };
   }
   try {
-    await client.delete(id);
+    const supabase = getSupabase();
+    const { error } = await supabase.from("blog_posts").delete().eq("id", id);
+    if (error) throw error;
     revalidateBlog();
     return { ok: true };
   } catch (e: unknown) {

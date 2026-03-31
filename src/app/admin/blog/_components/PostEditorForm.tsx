@@ -53,9 +53,8 @@ export function PostEditorForm({
   const [seoDescription, setSeoDescription] = useState(
     initial?.seoDescription ?? ""
   );
-  const [coverAssetId, setCoverAssetId] = useState<string | null>(null);
-  const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(
-    initialCoverUrl
+  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(
+    initialCoverUrl,
   );
   const [error, setError] = useState<string | null>(null);
 
@@ -79,8 +78,7 @@ export function PostEditorForm({
       setError(res.error);
       return;
     }
-    setCoverAssetId(res.assetId);
-    setCoverPreviewUrl(res.url || null);
+    setCoverImageUrl(res.url);
   }
 
   function buildPayload(publish: boolean): SaveBlogPostInput {
@@ -97,7 +95,7 @@ export function PostEditorForm({
       seoDescription,
       publishedAt: publishedAtIso,
       publish,
-      coverAssetId,
+      coverImageUrl,
     };
   }
 
@@ -231,10 +229,10 @@ export function PostEditorForm({
             Cover image
           </span>
           <div className="mt-2 flex flex-wrap items-start gap-4">
-            {coverPreviewUrl ? (
+            {coverImageUrl ? (
               <div className="relative h-40 w-56 overflow-hidden rounded-lg border border-brand-text/10 bg-brand-bg">
                 <Image
-                  src={coverPreviewUrl}
+                  src={coverImageUrl}
                   alt="Cover preview"
                   fill
                   className="object-cover"

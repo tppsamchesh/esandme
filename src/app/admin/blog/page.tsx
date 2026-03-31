@@ -30,7 +30,7 @@ export default async function AdminBlogPage() {
         <div>
           <h1 className="font-heading text-3xl text-brand-text">Blog</h1>
           <p className="mt-1 text-sm text-brand-text/70">
-            Manage journal posts stored in Sanity.
+            Manage journal posts stored in Supabase.
           </p>
         </div>
         <Link
@@ -42,13 +42,12 @@ export default async function AdminBlogPage() {
       </div>
 
       <div className="mt-2 rounded-lg border border-brand-secondary/30 bg-white/90 px-4 py-3 text-sm text-brand-text/85">
-        <strong className="text-brand-text">Sanity write access:</strong> saving
-        requires{" "}
+        <strong className="text-brand-text">Supabase:</strong> ensure your anon
+        key and RLS policies allow inserts and updates on{" "}
         <code className="rounded bg-brand-bg px-1 py-0.5 text-xs">
-          SANITY_API_TOKEN
-        </code>{" "}
-        with Editor permissions (project{" "}
-        <span className="font-mono text-xs">2yjt26j6</span>, dataset production).
+          blog_posts
+        </code>
+        .
       </div>
 
       {posts.length === 0 ? (

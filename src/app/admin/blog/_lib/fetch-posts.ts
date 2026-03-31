@@ -1,18 +1,5 @@
-import { client, urlFor } from "@/lib/sanity/client";
-import { groq } from "next-sanity";
+import { getSupabase } from "@/lib/supabase/client";
 import type { PortableTextBlock } from "@portabletext/types";
-
-const listQuery = groq`
-  *[_type == "blogPost"] | order(coalesce(publishedAt, _createdAt) desc) {
-    _id,
-    title,
-    slug,
-    publishedAt,
-    excerpt,
-    coverImage,
-    seoTitle
-  }
-`;
 
 export type BlogPostListRow = {
   _id: string;
@@ -26,33 +13,33 @@ export type BlogPostListRow = {
 };
 
 export async function fetchBlogPostsForAdmin(): Promise<BlogPostListRow[]> {
-  const rows = await client.fetch<BlogPostListRow[]>(listQuery);
-  return rows.map((row) => {
-    let thumbUrl: string | null = null;
-    if (row.coverImage) {
-      try {
-        thumbUrl = urlFor(row.coverImage).width(120).height(80).url();
-      } catch {
-        thumbUrl = null;
-      }
-    }
-    return { ...row, thumbUrl };
-  });
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from("blog_posts")
+    .select(
+      "id, title, slug, published_at, excerpt, cover_image_url, seo_title",
+    )
+    .order("published_at", { ascending: false });
+  if (error || !data) return [];
+  return (data as Array<{
+    id: string;
+    title: string;
+    slug: string;
+    published_at: string | null;
+    excerpt: string | null;
+    cover_image_url: string | null;
+    seo_title: string | null;
+  }>).map((row) => ({
+    _id: row.id,
+    title: row.title,
+    slug: { current: row.slug },
+    publishedAt: row.published_at,
+    excerpt: row.excerpt,
+    seoTitle: row.seo_title,
+    thumbUrl: row.cover_image_url,
+    coverImage: row.cover_image_url,
+  }));
 }
-
-const detailQuery = groq`
-  *[_type == "blogPost" && _id == $id][0] {
-    _id,
-    title,
-    slug,
-    publishedAt,
-    excerpt,
-    coverImage,
-    body,
-    seoTitle,
-    seoDescription
-  }
-`;
 
 export type BlogPostDetail = {
   _id: string;
@@ -60,15 +47,42 @@ export type BlogPostDetail = {
   slug?: { current?: string };
   publishedAt?: string | null;
   excerpt?: string | null;
-  coverImage?: unknown;
+  coverImage?: string | null;
   body?: PortableTextBlock[] | PortableTextBlock | null;
   seoTitle?: string | null;
   seoDescription?: string | null;
 };
 
 export async function fetchBlogPostById(
-  id: string
+  id: string,
 ): Promise<BlogPostDetail | null> {
-  const doc = await client.fetch<BlogPostDetail | null>(detailQuery, { id });
-  return doc;
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from("blog_posts")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error || !data) return null;
+  const row = data as {
+    id: string;
+    title: string;
+    slug: string;
+    published_at: string | null;
+    excerpt: string | null;
+    cover_image_url: string | null;
+    body: unknown;
+    seo_title: string | null;
+    seo_description: string | null;
+  };
+  return {
+    _id: row.id,
+    title: row.title,
+    slug: { current: row.slug },
+    publishedAt: row.published_at,
+    excerpt: row.excerpt,
+    coverImage: row.cover_image_url,
+    body: row.body as BlogPostDetail["body"],
+    seoTitle: row.seo_title,
+    seoDescription: row.seo_description,
+  };
 }

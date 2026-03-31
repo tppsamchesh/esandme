@@ -1,14 +1,13 @@
 import { CreateProductForm } from "./_components/CreateProductForm";
-import type { ProductDoc, ProductListItem } from "./_lib/types";
+import type { ProductListItem } from "./_lib/types";
 import {
   productStockBadge,
   totalVariantStock,
   variantNumericStock,
 } from "./_lib/stock";
 import { formatGbp } from "@/lib/admin/format";
-import { client, urlFor } from "@/lib/sanity/client";
-import { adminProductsListQuery } from "@/lib/sanity/admin-queries";
-import { groq } from "next-sanity";
+import { getSupabase } from "@/lib/supabase/client";
+import { uploadPublicImage } from "@/lib/supabase/storage";
 import Image from "next/image";
 import type { Metadata } from "next";
 import { revalidatePath } from "next/cache";
@@ -24,22 +23,6 @@ const COLLECTION_TITLES = [
   "Baby Changing",
   "Snuggy Bunny",
 ] as const;
-
-const collectionsQuery = groq`
-  *[_type == "collection" && title in $titles] {
-    _id,
-    title
-  }
-`;
-
-function imageUrl(img: unknown, w: number, h: number): string | null {
-  if (!img) return null;
-  try {
-    return urlFor(img).width(w).height(h).url();
-  } catch {
-    return null;
-  }
-}
 
 type ProductAdminRow = ProductListItem & {
   hidden?: boolean | null;
@@ -59,33 +42,135 @@ function parseOptionalPence(raw: string | undefined): number | undefined {
   return p ?? undefined;
 }
 
-function imageAssetRef(img: unknown): string | null {
-  if (!img || typeof img !== "object") return null;
-  const o = img as { asset?: { _ref?: string } };
-  const ref = o.asset?._ref;
-  return typeof ref === "string" && ref.length > 0 ? ref : null;
-}
-
-function newVariantKey(): string {
-  return `v_${crypto.randomUUID().replace(/-/g, "")}`;
-}
+type DbProduct = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  price: number;
+  compare_price: number | null;
+  hidden: boolean | null;
+  collection_id: string | null;
+};
 
 async function fetchProductsForAdminPage(): Promise<ProductAdminRow[]> {
-  const rows = await client.fetch<
-    Array<ProductDoc & { hidden?: boolean | null; comparePrice?: number | null }>
-  >(adminProductsListQuery);
-  return rows.map((p) => {
-    const imgs = p.images ?? [];
-    const first = imgs[0];
-    const thumbUrl = first ? imageUrl(first, 240, 240) : null;
-    const galleryUrls = imgs
-      .map((img) => imageUrl(img, 1200, 1200))
-      .filter((u): u is string => u != null);
-    return {
-      ...p,
+  const supabase = getSupabase();
+  const { data: prows, error } = await supabase
+    .from("products")
+    .select("*")
+    .order("title");
+  if (error || !prows?.length) return [];
+
+  const products = prows as DbProduct[];
+  const pids = products.map((p) => p.id);
+  const cids = [
+    ...new Set(products.map((p) => p.collection_id).filter(Boolean)),
+  ] as string[];
+
+  const [{ data: cols }, { data: variants }, { data: imgs }] =
+    await Promise.all([
+      cids.length
+        ? supabase.from("collections").select("id, title, slug").in("id", cids)
+        : Promise.resolve({ data: [] }),
+      supabase.from("product_variants").select("*").in("product_id", pids),
+      supabase
+        .from("product_images")
+        .select("id, product_id, url, sort_order")
+        .in("product_id", pids)
+        .order("sort_order", { ascending: true }),
+    ]);
+
+  const colMap = new Map(
+    (cols ?? []).map((c: { id: string; title: string; slug: string }) => [
+      c.id,
+      c,
+    ]),
+  );
+
+  const vByPid = new Map<
+    string,
+    Array<{
+      id: string;
+      title: string | null;
+      size: string | null;
+      colour: string | null;
+      sku: string | null;
+      price: number | null;
+      stock: number | null;
+    }>
+  >();
+  for (const v of variants ?? []) {
+    const vr = v as {
+      product_id: string;
+      id: string;
+      title: string | null;
+      size: string | null;
+      colour: string | null;
+      sku: string | null;
+      price: number | null;
+      stock: number | null;
+    };
+    const list = vByPid.get(vr.product_id) ?? [];
+    list.push(vr);
+    vByPid.set(vr.product_id, list);
+  }
+
+  const iByPid = new Map<
+    string,
+    Array<{ id: string; url: string; sort_order: number | null }>
+  >();
+  for (const im of imgs ?? []) {
+    const row = im as {
+      id: string;
+      product_id: string;
+      url: string;
+      sort_order: number | null;
+    };
+    const list = iByPid.get(row.product_id) ?? [];
+    list.push(row);
+    iByPid.set(row.product_id, list);
+  }
+
+  return products.map((p) => {
+    const col = p.collection_id ? colMap.get(p.collection_id) : null;
+    const vrows = vByPid.get(p.id) ?? [];
+    const irows = [...(iByPid.get(p.id) ?? [])].sort(
+      (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
+    );
+    const galleryUrls = irows.map((r) => r.url);
+    const thumbUrl = galleryUrls[0] ?? null;
+
+    const variantsMapped = vrows.map((vr) => ({
+      _key: vr.id,
+      title: vr.title ?? undefined,
+      size: vr.size ?? undefined,
+      colour: vr.colour ?? undefined,
+      sku: vr.sku ?? undefined,
+      price: vr.price ?? undefined,
+      stock: vr.stock ?? undefined,
+    }));
+
+    const row: ProductAdminRow = {
+      _id: p.id,
+      title: p.title,
+      slug: { current: p.slug },
+      description: p.description,
+      price: p.price,
+      comparePrice: p.compare_price,
+      hidden: p.hidden,
+      images: irows.map((r) => ({ id: r.id, url: r.url })),
+      collection: col
+        ? {
+            _id: col.id,
+            title: col.title,
+            slug: { current: col.slug },
+          }
+        : null,
+      variants: variantsMapped,
       thumbUrl,
       galleryUrls,
     };
+    return row;
   });
 }
 
@@ -148,11 +233,12 @@ export async function toggleProductHidden(formData: FormData) {
     redirect(redirectTo);
   }
   const nextHidden = formData.get("nextHidden") === "true";
-  if (!process.env.SANITY_API_TOKEN) {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
     redirect(redirectTo);
   }
   try {
-    await client.patch(id).set({ hidden: nextHidden }).commit();
+    const supabase = getSupabase();
+    await supabase.from("products").update({ hidden: nextHidden }).eq("id", id);
   } catch {
     // Leave UI unchanged on failure; user can retry
   }
@@ -168,27 +254,32 @@ export async function saveProductSale(formData: FormData) {
   if (!id) {
     redirect(redirectTo);
   }
-  if (!process.env.SANITY_API_TOKEN) {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
     redirect(redirectTo);
   }
   try {
-    const doc = await client.getDocument(id);
-    if (!doc || doc._type !== "product") {
+    const supabase = getSupabase();
+    const { data: row, error: fetchErr } = await supabase
+      .from("products")
+      .select("price, compare_price")
+      .eq("id", id)
+      .maybeSingle();
+    if (fetchErr || !row) {
       redirect(redirectTo);
     }
-    const currentPrice = doc.price as number;
-    const currentCompare =
-      typeof doc.comparePrice === "number" && !Number.isNaN(doc.comparePrice)
-        ? doc.comparePrice
-        : null;
+    const currentPrice = (row as { price: number }).price;
+    const currentCompare = (row as { compare_price: number | null })
+      .compare_price;
 
     if (salePounds === "") {
       if (currentCompare != null) {
-        await client
-          .patch(id)
-          .set({ price: currentCompare })
-          .unset(["comparePrice"])
-          .commit();
+        await supabase
+          .from("products")
+          .update({
+            price: currentCompare,
+            compare_price: null,
+          })
+          .eq("id", id);
       }
     } else {
       const salePence = poundsToPence(salePounds);
@@ -196,12 +287,18 @@ export async function saveProductSale(formData: FormData) {
         redirect(redirectTo);
       }
       if (currentCompare != null) {
-        await client.patch(id).set({ price: salePence }).commit();
+        await supabase
+          .from("products")
+          .update({ price: salePence })
+          .eq("id", id);
       } else {
-        await client
-          .patch(id)
-          .set({ comparePrice: currentPrice, price: salePence })
-          .commit();
+        await supabase
+          .from("products")
+          .update({
+            compare_price: currentPrice,
+            price: salePence,
+          })
+          .eq("id", id);
       }
     }
   } catch {
@@ -218,7 +315,7 @@ export async function saveProductVariantsAndImages(formData: FormData) {
   if (!id) {
     redirect(redirectTo);
   }
-  if (!process.env.SANITY_API_TOKEN) {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
     redirect(redirectTo);
   }
 
@@ -229,32 +326,47 @@ export async function saveProductVariantsAndImages(formData: FormData) {
   );
 
   try {
-    const doc = await client.getDocument(id);
-    if (!doc || doc._type !== "product") {
+    const supabase = getSupabase();
+    const { data: prod, error: pe } = await supabase
+      .from("products")
+      .select("id")
+      .eq("id", id)
+      .maybeSingle();
+    if (pe || !prod) {
       redirect(redirectTo);
     }
 
     const removeVariantKeys = new Set(
       formData.getAll("removeVariant").map((v) => String(v)),
     );
-    const removeImageRefs = new Set(
-      formData.getAll("removeImageRef").map((v) => String(v)),
+    const removeImageIds = new Set(
+      formData.getAll("removeImageId").map((v) => String(v)),
     );
 
-    const existingVariants = Array.isArray(doc.variants) ? doc.variants : [];
-    const variants: Array<Record<string, unknown>> = [];
+    const { data: dbVariantRows } = await supabase
+      .from("product_variants")
+      .select("id")
+      .eq("product_id", id);
+    const dbVariantIds = new Set(
+      (dbVariantRows ?? []).map((r: { id: string }) => r.id),
+    );
 
-    for (const v of existingVariants) {
-      const key = (v as { _key?: string })._key;
-      if (!key || removeVariantKeys.has(key)) continue;
+    for (const rid of removeVariantKeys) {
+      if (dbVariantIds.has(rid)) {
+        await supabase.from("product_variants").delete().eq("id", rid);
+      }
+    }
 
-      const title = formData.get(`variant_${key}_title`)?.toString() ?? "";
-      const size = formData.get(`variant_${key}_size`)?.toString() ?? "";
-      const colour = formData.get(`variant_${key}_colour`)?.toString() ?? "";
-      const sku = formData.get(`variant_${key}_sku`)?.toString() ?? "";
+    for (const vid of dbVariantIds) {
+      if (removeVariantKeys.has(vid)) continue;
+
+      const title = formData.get(`variant_${vid}_title`)?.toString() ?? "";
+      const size = formData.get(`variant_${vid}_size`)?.toString() ?? "";
+      const colour = formData.get(`variant_${vid}_colour`)?.toString() ?? "";
+      const sku = formData.get(`variant_${vid}_sku`)?.toString() ?? "";
       const priceGbp =
-        formData.get(`variant_${key}_priceGbp`)?.toString() ?? "";
-      const stockRaw = formData.get(`variant_${key}_stock`)?.toString() ?? "";
+        formData.get(`variant_${vid}_priceGbp`)?.toString() ?? "";
+      const stockRaw = formData.get(`variant_${vid}_stock`)?.toString() ?? "";
 
       const pricePence = parseOptionalPence(priceGbp);
       const stock =
@@ -262,16 +374,21 @@ export async function saveProductVariantsAndImages(formData: FormData) {
           ? 0
           : Math.max(0, parseInt(stockRaw, 10) || 0);
 
-      const row: Record<string, unknown> = {
-        _key: key,
+      const upd: Record<string, unknown> = {
         title,
         size,
         colour,
         sku,
         stock,
       };
-      if (pricePence != null) row.price = pricePence;
-      variants.push(row);
+      if (pricePence != null) upd.price = pricePence;
+      else upd.price = null;
+
+      await supabase
+        .from("product_variants")
+        .update(upd)
+        .eq("id", vid)
+        .eq("product_id", id);
     }
 
     for (let i = 0; i < extraVariantRows; i++) {
@@ -297,43 +414,50 @@ export async function saveProductVariantsAndImages(formData: FormData) {
           ? 0
           : Math.max(0, parseInt(stockRaw, 10) || 0);
 
-      const row: Record<string, unknown> = {
-        _key: newVariantKey(),
+      const ins: Record<string, unknown> = {
+        product_id: id,
         title: title.trim(),
         size: size.trim(),
         colour: colour.trim(),
         sku: sku.trim(),
         stock,
       };
-      if (pricePence != null) row.price = pricePence;
-      variants.push(row);
+      if (pricePence != null) ins.price = pricePence;
+      await supabase.from("product_variants").insert(ins);
     }
 
-    const imagesIn = Array.isArray(doc.images) ? doc.images : [];
-    const keptImages = imagesIn.filter((img) => {
-      const ref = imageAssetRef(img);
-      return ref && !removeImageRefs.has(ref);
-    });
+    for (const imgId of removeImageIds) {
+      await supabase
+        .from("product_images")
+        .delete()
+        .eq("id", imgId)
+        .eq("product_id", id);
+    }
+
+    const { data: sortRow } = await supabase
+      .from("product_images")
+      .select("sort_order")
+      .eq("product_id", id)
+      .order("sort_order", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    let sortBase =
+      typeof (sortRow as { sort_order: number | null } | null)?.sort_order ===
+      "number"
+        ? (sortRow as { sort_order: number }).sort_order
+        : -1;
 
     const newFiles = formData.getAll("newImages");
-    const nextImages: unknown[] = [...keptImages];
     for (const f of newFiles) {
       if (!(f instanceof File) || f.size === 0) continue;
-      const buf = Buffer.from(await f.arrayBuffer());
-      const assetDoc = await client.assets.upload("image", buf, {
-        filename: f.name || "upload.jpg",
-      });
-      const ref = (assetDoc as { _id: string })._id;
-      nextImages.push({
-        _type: "image",
-        asset: {
-          _type: "reference",
-          _ref: ref,
-        },
+      sortBase += 1;
+      const url = await uploadPublicImage(f, "products");
+      await supabase.from("product_images").insert({
+        product_id: id,
+        url,
+        sort_order: sortBase,
       });
     }
-
-    await client.patch(id).set({ variants, images: nextImages }).commit();
   } catch {
     // Leave UI unchanged on failure; user can retry
   }
@@ -348,12 +472,17 @@ export async function deleteProduct(formData: FormData) {
   if (!id?.trim()) {
     redirect(returnTo);
   }
-  if (!process.env.SANITY_API_TOKEN) {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
     const sep = returnTo.includes("?") ? "&" : "?";
     redirect(`${returnTo}${sep}deleteError=token`);
   }
   try {
-    await client.delete(id.trim());
+    const supabase = getSupabase();
+    const pid = id.trim();
+    await supabase.from("product_variants").delete().eq("product_id", pid);
+    await supabase.from("product_images").delete().eq("product_id", pid);
+    const { error } = await supabase.from("products").delete().eq("id", pid);
+    if (error) throw error;
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const sep = returnTo.includes("?") ? "&" : "?";
@@ -402,19 +531,27 @@ export default async function AdminProductsPage({
   }>;
 }) {
   const sp = await searchParams;
-  const [products, rawCollections] = await Promise.all([
+  const supabase = getSupabase();
+  const [products, colRes] = await Promise.all([
     fetchProductsForAdminPage(),
-    client.fetch<Array<{ _id: string; title: string }>>(collectionsQuery, {
-      titles: [...COLLECTION_TITLES],
-    }),
+    supabase
+      .from("collections")
+      .select("id, title")
+      .in("title", [...COLLECTION_TITLES]),
   ]);
+  const rawCollections = (colRes.data ?? []) as Array<{
+    id: string;
+    title: string;
+  }>;
 
   const order = new Map<string, number>(
     COLLECTION_TITLES.map((title, index) => [title, index]),
   );
-  const collections = [...rawCollections].sort(
-    (a, b) => (order.get(a.title) ?? 99) - (order.get(b.title) ?? 99),
-  );
+  const collections = [...rawCollections]
+    .map((c) => ({ _id: c.id, title: c.title }))
+    .sort(
+      (a, b) => (order.get(a.title) ?? 99) - (order.get(b.title) ?? 99),
+    );
 
   const stats = globalStats(products);
   const returnTo = buildAdminProductsPath({
@@ -449,7 +586,7 @@ export default async function AdminProductsPage({
     <div className="p-6 md:p-8">
       <h1 className="font-heading text-3xl text-brand-text">Products & stock</h1>
       <p className="mt-1 text-sm text-brand-text/70">
-        View stock levels and edit product details. Changes save to Sanity.
+        View stock levels and edit product details. Changes save to Supabase.
       </p>
       <div className="mt-8 space-y-8">
         <CreateProductForm collections={collections} />
@@ -461,25 +598,23 @@ export default async function AdminProductsPage({
               role="alert"
             >
               {sp.deleteError === "token"
-                ? "SANITY_API_TOKEN is missing or invalid. Cannot delete."
+                ? "Supabase is not configured (NEXT_PUBLIC_SUPABASE_URL). Cannot delete."
                 : `Could not delete product: ${safeDecode(sp.deleteError)}`}
             </div>
           ) : null}
 
           <div className="rounded-lg border border-brand-secondary/40 bg-white/80 px-4 py-3 text-sm text-brand-text/90 shadow-sm">
-            <p className="font-medium text-brand-text">Sanity API token</p>
+            <p className="font-medium text-brand-text">Supabase</p>
             <p className="mt-1 text-brand-text/80">
-              Saving changes requires{" "}
+              Product data is stored in Supabase. Ensure{" "}
               <code className="rounded bg-brand-bg px-1 py-0.5 text-xs">
-                SANITY_API_TOKEN
+                NEXT_PUBLIC_SUPABASE_URL
               </code>{" "}
-              with <strong>Editor</strong> (write) permissions — not a viewer token.
-              Check{" "}
-              <span className="whitespace-nowrap">
-                Sanity → Settings → API → Tokens
-              </span>{" "}
-              in the project (e.g.{" "}
-              <span className="font-mono text-xs">2yjt26j6</span> / production).
+              and{" "}
+              <code className="rounded bg-brand-bg px-1 py-0.5 text-xs">
+                NEXT_PUBLIC_SUPABASE_ANON_KEY
+              </code>{" "}
+              are set, and RLS policies allow the operations you need.
             </p>
           </div>
 
@@ -544,8 +679,7 @@ export default async function AdminProductsPage({
           {products.length === 0 ? (
             <div className="rounded-lg border border-brand-text/10 bg-white px-6 py-14 text-center shadow-sm">
               <p className="text-brand-text/85">
-                No products found yet. Add products in Sanity Studio — they will
-                show up here automatically.
+                No products found yet. Create a product with the form above.
               </p>
             </div>
           ) : filtered.length === 0 ? (
@@ -931,38 +1065,33 @@ export default async function AdminProductsPage({
                             </p>
                             <div className="mt-2 flex flex-wrap gap-3">
                               {(p.images ?? []).map((img, imgIdx) => {
-                                const ref = imageAssetRef(img);
-                                const thumb = ref
-                                  ? imageUrl(img, 96, 96)
-                                  : null;
-                                if (!ref) return null;
+                                const row = img as { id?: string; url?: string };
+                                const imgId = row.id;
+                                const thumb = row.url;
+                                if (!imgId || !thumb) return null;
                                 return (
                                   <div
-                                    key={`${ref}-${imgIdx}`}
+                                    key={imgId}
                                     className="relative"
                                   >
                                     <input
                                       type="checkbox"
-                                      name="removeImageRef"
-                                      value={ref}
-                                      id={`rm-img-${p._id}-${imgIdx}-${ref}`}
+                                      name="removeImageId"
+                                      value={imgId}
+                                      id={`rm-img-${p._id}-${imgIdx}-${imgId}`}
                                       className="peer sr-only"
                                     />
                                     <div className="peer-checked:opacity-40 peer-checked:grayscale">
-                                      {thumb ? (
-                                        <Image
-                                          src={thumb}
-                                          alt=""
-                                          width={96}
-                                          height={96}
-                                          className="h-20 w-20 rounded-md border border-brand-text/15 object-cover"
-                                        />
-                                      ) : (
-                                        <div className="h-20 w-20 rounded-md border border-brand-text/15 bg-brand-bg" />
-                                      )}
+                                      <Image
+                                        src={thumb}
+                                        alt=""
+                                        width={96}
+                                        height={96}
+                                        className="h-20 w-20 rounded-md border border-brand-text/15 object-cover"
+                                      />
                                     </div>
                                     <label
-                                      htmlFor={`rm-img-${p._id}-${imgIdx}-${ref}`}
+                                      htmlFor={`rm-img-${p._id}-${imgIdx}-${imgId}`}
                                       className="absolute -right-1 -top-1 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-brand-text text-xs font-bold text-white shadow hover:bg-red-800"
                                       title="Remove image"
                                     >

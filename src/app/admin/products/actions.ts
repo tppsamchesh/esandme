@@ -1,6 +1,7 @@
 "use server";
 
-import { client } from "@/lib/sanity/client";
+import { getSupabase } from "@/lib/supabase/client";
+import { uploadPublicImage } from "@/lib/supabase/storage";
 import { revalidatePath } from "next/cache";
 
 export type SaveProductInput = {
@@ -20,16 +21,9 @@ export type SaveProductInput = {
 };
 
 export async function saveProduct(
-  input: SaveProductInput
+  input: SaveProductInput,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!process.env.SANITY_API_TOKEN) {
-    return {
-      ok: false,
-      error:
-        "SANITY_API_TOKEN is not set. Add a token with write (Editor) access.",
-    };
-  }
-
+  const supabase = getSupabase();
   const { id, title, description, pricePence, variants } = input;
 
   if (!title.trim()) {
@@ -41,9 +35,18 @@ export async function saveProduct(
   }
 
   try {
-    const variantPayload = variants.map((v) => {
+    const { error: pe } = await supabase
+      .from("products")
+      .update({
+        title: title.trim(),
+        description: description.trim() || null,
+        price: Math.round(pricePence),
+      })
+      .eq("id", id);
+    if (pe) throw pe;
+
+    for (const v of variants) {
       const row: Record<string, unknown> = {
-        _key: v._key,
         title: v.title ?? "",
         size: v.size ?? "",
         colour: v.colour ?? "",
@@ -52,19 +55,16 @@ export async function saveProduct(
       };
       if (v.pricePence != null && Number.isFinite(v.pricePence)) {
         row.price = Math.round(v.pricePence);
+      } else {
+        row.price = null;
       }
-      return row;
-    });
-
-    await client
-      .patch(id)
-      .set({
-        title: title.trim(),
-        description: description.trim() || undefined,
-        price: Math.round(pricePence),
-        variants: variantPayload,
-      })
-      .commit();
+      const { error: ve } = await supabase
+        .from("product_variants")
+        .update(row)
+        .eq("id", v._key)
+        .eq("product_id", id);
+      if (ve) throw ve;
+    }
 
     revalidatePath("/admin/products");
     return { ok: true };
@@ -94,21 +94,10 @@ export type CreateProductInput = {
   imageFiles: File[];
 };
 
-function randomKey(): string {
-  return Math.random().toString(36).slice(2, 14);
-}
-
 export async function createProduct(
   input: CreateProductInput,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!process.env.SANITY_API_TOKEN) {
-    return {
-      ok: false,
-      error:
-        "SANITY_API_TOKEN is not set. Add a token with write (Editor) access.",
-    };
-  }
-
+  const supabase = getSupabase();
   const title = input.title.trim();
   const slugCurrent = input.slug.trim().toLowerCase();
   const description = input.description.trim();
@@ -132,62 +121,52 @@ export async function createProduct(
   );
 
   try {
-    const images: Array<Record<string, unknown>> = [];
-    for (const file of imageFiles) {
-      const buffer = Buffer.from(await file.arrayBuffer());
-      const asset = await client.assets.upload("image", buffer, {
-        filename: file.name,
-        contentType: file.type || "image/jpeg",
+    const { data: inserted, error: insErr } = await supabase
+      .from("products")
+      .insert({
+        title,
+        slug: slugCurrent,
+        description: description || null,
+        price: Math.round(pricePence),
+        collection_id: collectionId.trim(),
+        hidden: !published,
+        compare_price: null,
+      })
+      .select("id")
+      .single();
+    if (insErr) throw insErr;
+    const productId = (inserted as { id: string }).id;
+
+    if (variants.length > 0) {
+      const variantRows = variants.map((v) => {
+        const row: Record<string, unknown> = {
+          product_id: productId,
+          title: v.title?.trim() ?? "",
+          size: v.size?.trim() ?? "",
+          colour: v.colour?.trim() ?? "",
+          sku: v.sku?.trim() ?? "",
+          stock: Math.max(0, Math.floor(Number(v.stock) || 0)),
+        };
+        if (v.pricePence != null && Number.isFinite(v.pricePence)) {
+          row.price = Math.round(v.pricePence);
+        }
+        return row;
       });
-      images.push({
-        _type: "image",
-        _key: randomKey(),
-        asset: {
-          _type: "reference",
-          _ref: asset._id,
-        },
-      });
+      const { error: vErr } = await supabase
+        .from("product_variants")
+        .insert(variantRows);
+      if (vErr) throw vErr;
     }
 
-    const variantPayload = variants.map((v) => {
-      const row: Record<string, unknown> = {
-        _key: randomKey(),
-        title: v.title?.trim() ?? "",
-        size: v.size?.trim() ?? "",
-        colour: v.colour?.trim() ?? "",
-        sku: v.sku?.trim() ?? "",
-        stock: Math.max(0, Math.floor(Number(v.stock) || 0)),
-      };
-      if (v.pricePence != null && Number.isFinite(v.pricePence)) {
-        row.price = Math.round(v.pricePence);
-      }
-      return row;
-    });
-
-    const doc = {
-      _type: "product" as const,
-      title,
-      slug: { _type: "slug" as const, current: slugCurrent },
-      ...(description ? { description } : {}),
-      price: Math.round(pricePence),
-      collection: {
-        _type: "reference" as const,
-        _ref: collectionId.trim(),
-      },
-      ...(images.length > 0 ? { images } : {}),
-      ...(variantPayload.length > 0 ? { variants: variantPayload } : {}),
-    };
-
-    const created = await client.create(doc);
-
-    if (published && created._id.startsWith("drafts.")) {
-      const draftId = created._id;
-      const publishedId = draftId.replace(/^drafts\./, "");
-      await client.action({
-        actionType: "sanity.action.document.publish",
-        draftId,
-        publishedId,
+    let sort = 0;
+    for (const file of imageFiles) {
+      const url = await uploadPublicImage(file, "products");
+      const { error: imgErr } = await supabase.from("product_images").insert({
+        product_id: productId,
+        url,
+        sort_order: sort++,
       });
+      if (imgErr) throw imgErr;
     }
 
     revalidatePath("/admin/products");

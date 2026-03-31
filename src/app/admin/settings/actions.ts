@@ -1,7 +1,7 @@
 "use server";
 
 import type { NavLink } from "@/app/admin/settings/_lib/fetch-site-settings";
-import { client } from "@/lib/sanity/client";
+import { getSupabase } from "@/lib/supabase/client";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -11,11 +11,17 @@ function revalidatePublic() {
   revalidatePath("/admin/settings");
 }
 
-async function resolveSiteSettingsId(
-  provided: string | null
+async function getSiteSettingsRowId(
+  provided: string | null,
 ): Promise<string | null> {
   if (provided) return provided;
-  return client.fetch<string | null>(`*[_type == "siteSettings"][0]._id`);
+  const supabase = getSupabase();
+  const { data } = await supabase
+    .from("site_settings")
+    .select("id")
+    .limit(1)
+    .maybeSingle();
+  return (data as { id: string } | null)?.id ?? null;
 }
 
 export async function saveSiteFields(input: {
@@ -23,31 +29,27 @@ export async function saveSiteFields(input: {
   announcementBar: string;
   freeDeliveryThresholdPence: number;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!process.env.SANITY_API_TOKEN) {
-    return { ok: false, error: "SANITY_API_TOKEN is not configured." };
-  }
-
+  const supabase = getSupabase();
   const threshold = Math.max(0, Math.round(input.freeDeliveryThresholdPence));
   const announcementBar = input.announcementBar.trim();
 
   try {
-    const id = await resolveSiteSettingsId(input.documentId);
-    if (id) {
-      await client
-        .patch(id)
-        .set({
-          announcementBar: announcementBar || undefined,
-          freeDeliveryThreshold: threshold,
-        })
-        .commit();
-    } else {
-      await client.create({
-        _type: "siteSettings",
-        announcementBar: announcementBar || undefined,
-        freeDeliveryThreshold: threshold,
-        nav: [],
-      });
+    const id = await getSiteSettingsRowId(input.documentId);
+    if (!id) {
+      return {
+        ok: false,
+        error:
+          "No site_settings row found. Create one row in Supabase (site_settings) first.",
+      };
     }
+    const { error } = await supabase
+      .from("site_settings")
+      .update({
+        announcement_bar: announcementBar || null,
+        free_delivery_threshold: threshold,
+      })
+      .eq("id", id);
+    if (error) throw error;
     revalidatePublic();
     return { ok: true };
   } catch (e: unknown) {
@@ -60,10 +62,7 @@ export async function saveNavLinks(input: {
   documentId: string | null;
   nav: NavLink[];
 }): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!process.env.SANITY_API_TOKEN) {
-    return { ok: false, error: "SANITY_API_TOKEN is not configured." };
-  }
-
+  const supabase = getSupabase();
   const navPayload = input.nav.map((item) => ({
     _key: item._key,
     label: item.label?.trim() ?? "",
@@ -71,16 +70,19 @@ export async function saveNavLinks(input: {
   }));
 
   try {
-    const id = await resolveSiteSettingsId(input.documentId);
-    if (id) {
-      await client.patch(id).set({ nav: navPayload }).commit();
-    } else {
-      await client.create({
-        _type: "siteSettings",
-        freeDeliveryThreshold: 0,
-        nav: navPayload,
-      });
+    const id = await getSiteSettingsRowId(input.documentId);
+    if (!id) {
+      return {
+        ok: false,
+        error:
+          "No site_settings row found. Create one row in Supabase (site_settings) first.",
+      };
     }
+    const { error } = await supabase
+      .from("site_settings")
+      .update({ nav: navPayload })
+      .eq("id", id);
+    if (error) throw error;
     revalidatePublic();
     return { ok: true };
   } catch (e: unknown) {

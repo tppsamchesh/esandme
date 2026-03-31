@@ -169,7 +169,7 @@ export function CreateProductForm({
       setSuccess(
         published
           ? "Product created and published."
-          : "Product saved as a draft in Sanity. Publish it from Studio or turn on Published when creating.",
+          : "Product saved as a draft (hidden). Turn on Published when creating to show it on the shop.",
       );
       resetForm();
       router.refresh();
@@ -184,7 +184,7 @@ export function CreateProductForm({
             New product
           </h2>
           <p className="mt-0.5 text-xs text-brand-text/60">
-            Creates a document in Sanity. Base price is stored in pence.
+            Creates a row in Supabase. Base price is stored in pence.
           </p>
         </div>
         <button
@@ -278,7 +278,7 @@ export function CreateProductForm({
                 disabled={collections.length === 0}
               >
                 {collections.length === 0 ? (
-                  <option value="">No collections in Sanity</option>
+                  <option value="">No collections yet</option>
                 ) : (
                   collections.map((c) => (
                     <option key={c._id} value={c._id}>

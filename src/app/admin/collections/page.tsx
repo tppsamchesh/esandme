@@ -1,5 +1,5 @@
-import { client, urlFor } from "@/lib/sanity/client";
-import { adminCollectionsListQuery } from "@/lib/sanity/admin-queries";
+import { getSupabase } from "@/lib/supabase/client";
+import { uploadPublicImage } from "@/lib/supabase/storage";
 import Image from "next/image";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -10,22 +10,13 @@ export const metadata: Metadata = {
   title: "Collections",
 };
 
-type CollectionDoc = {
-  _id: string;
+type CollectionRow = {
+  id: string;
   title: string;
-  slug?: { current?: string } | null;
-  description?: string | null;
-  heroImage?: unknown;
+  slug: string;
+  description: string | null;
+  hero_image_url: string | null;
 };
-
-function imageUrl(img: unknown, w: number, h: number): string | null {
-  if (!img) return null;
-  try {
-    return urlFor(img).width(w).height(h).url();
-  } catch {
-    return null;
-  }
-}
 
 function slugify(input: string): string {
   return input
@@ -39,16 +30,6 @@ function slugify(input: string): string {
     .replace(/^-|-$/g, "");
 }
 
-function buildImageValue(assetId: string) {
-  return {
-    _type: "image" as const,
-    asset: {
-      _type: "reference" as const,
-      _ref: assetId,
-    },
-  };
-}
-
 export async function saveCollection(formData: FormData) {
   "use server";
   const id = formData.get("id")?.toString()?.trim();
@@ -57,7 +38,7 @@ export async function saveCollection(formData: FormData) {
   if (!id) {
     redirect(redirectTo);
   }
-  if (!process.env.SANITY_API_TOKEN) {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
     redirect(redirectTo);
   }
 
@@ -65,30 +46,30 @@ export async function saveCollection(formData: FormData) {
   const description = formData.get("description")?.toString() ?? "";
 
   try {
-    const doc = await client.getDocument(id);
-    if (!doc || doc._type !== "collection") {
+    const supabase = getSupabase();
+    const { data: row, error: fe } = await supabase
+      .from("collections")
+      .select("id, hero_image_url")
+      .eq("id", id)
+      .maybeSingle();
+    if (fe || !row) {
       redirect(redirectTo);
     }
 
     const file = formData.get("heroImage");
-    let heroImage: unknown = doc.heroImage;
+    let hero_image_url = (row as CollectionRow).hero_image_url;
     if (file instanceof File && file.size > 0) {
-      const buf = Buffer.from(await file.arrayBuffer());
-      const assetDoc = await client.assets.upload("image", buf, {
-        filename: file.name || "hero.jpg",
-      });
-      const ref = (assetDoc as { _id: string })._id;
-      heroImage = buildImageValue(ref);
+      hero_image_url = await uploadPublicImage(file, "collections");
     }
 
-    await client
-      .patch(id)
-      .set({
+    await supabase
+      .from("collections")
+      .update({
         title,
-        description,
-        heroImage,
+        description: description.trim() || null,
+        hero_image_url,
       })
-      .commit();
+      .eq("id", id);
   } catch {
     // Leave UI unchanged on failure; user can retry
   }
@@ -100,7 +81,7 @@ export async function createCollection(formData: FormData) {
   "use server";
   const redirectTo =
     formData.get("redirectTo")?.toString() || "/admin/collections";
-  if (!process.env.SANITY_API_TOKEN) {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
     redirect(redirectTo);
   }
 
@@ -119,23 +100,18 @@ export async function createCollection(formData: FormData) {
   }
 
   try {
+    const supabase = getSupabase();
     const file = formData.get("heroImage");
-    let heroImage: ReturnType<typeof buildImageValue> | undefined;
+    let hero_image_url: string | null = null;
     if (file instanceof File && file.size > 0) {
-      const buf = Buffer.from(await file.arrayBuffer());
-      const assetDoc = await client.assets.upload("image", buf, {
-        filename: file.name || "hero.jpg",
-      });
-      const ref = (assetDoc as { _id: string })._id;
-      heroImage = buildImageValue(ref);
+      hero_image_url = await uploadPublicImage(file, "collections");
     }
 
-    await client.create({
-      _type: "collection",
+    await supabase.from("collections").insert({
       title,
-      slug: { _type: "slug", current: slugCurrent },
-      ...(description.trim() ? { description: description.trim() } : {}),
-      ...(heroImage ? { heroImage } : {}),
+      slug: slugCurrent,
+      description: description.trim() || null,
+      hero_image_url,
     });
   } catch {
     // ignore; user can retry
@@ -152,7 +128,12 @@ export default async function AdminCollectionsPage({
   const sp = await searchParams;
   const showNew = sp.new === "1" || sp.new === "true";
 
-  const rows = await client.fetch<CollectionDoc[]>(adminCollectionsListQuery);
+  const supabase = getSupabase();
+  const { data: rowsData } = await supabase
+    .from("collections")
+    .select("id, title, slug, description, hero_image_url")
+    .order("title");
+  const rows = (rowsData ?? []) as CollectionRow[];
 
   return (
     <div className="p-6 md:p-8">
@@ -162,7 +143,7 @@ export default async function AdminCollectionsPage({
             Collections
           </h1>
           <p className="mt-1 text-sm text-brand-text/70">
-            Manage shop collections in Sanity — titles, copy, and hero images.
+            Manage shop collections — titles, copy, and hero images (Supabase).
           </p>
         </div>
         {showNew ? (
@@ -253,19 +234,13 @@ export default async function AdminCollectionsPage({
       ) : null}
 
       <div className="mt-8 rounded-lg border border-brand-secondary/40 bg-white/80 px-4 py-3 text-sm text-brand-text/90 shadow-sm">
-        <p className="font-medium text-brand-text">Sanity API token</p>
+        <p className="font-medium text-brand-text">Supabase</p>
         <p className="mt-1 text-brand-text/80">
-          Saving changes requires{" "}
+          Collections are stored in Supabase. Hero images upload to the{" "}
           <code className="rounded bg-brand-bg px-1 py-0.5 text-xs">
-            SANITY_API_TOKEN
+            product-images
           </code>{" "}
-          with <strong>Editor</strong> (write) permissions — not a viewer token.
-          Check{" "}
-          <span className="whitespace-nowrap">
-            Sanity → Settings → API → Tokens
-          </span>{" "}
-          in the project (e.g.{" "}
-          <span className="font-mono text-xs">2yjt26j6</span> / production).
+          storage bucket.
         </p>
       </div>
 
@@ -284,13 +259,11 @@ export default async function AdminCollectionsPage({
       ) : (
         <div className="mt-8 grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
           {rows.map((c) => {
-            const heroThumb = c.heroImage
-              ? imageUrl(c.heroImage, 640, 400)
-              : null;
-            const slugText = c.slug?.current ?? "";
+            const heroThumb = c.hero_image_url;
+            const slugText = c.slug ?? "";
             return (
               <div
-                key={c._id}
+                key={c.id}
                 className="flex flex-col overflow-hidden rounded-xl border border-brand-text/10 bg-white text-left shadow-sm transition-shadow hover:border-brand-primary/40 hover:shadow-md"
               >
                 <div className="relative aspect-[16/10] w-full bg-brand-bg">
@@ -313,7 +286,7 @@ export default async function AdminCollectionsPage({
                   encType="multipart/form-data"
                   className="flex flex-1 flex-col gap-3 p-4"
                 >
-                  <input type="hidden" name="id" value={c._id} />
+                  <input type="hidden" name="id" value={c.id} />
                   <input
                     type="hidden"
                     name="redirectTo"
