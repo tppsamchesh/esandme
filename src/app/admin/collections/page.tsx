@@ -253,54 +253,19 @@ function CollectionEditCard({
   }
 
   const handleSave = async () => {
-    if (heroImageUploading) return;
+    alert("Save clicked — heroImageUrl is: " + heroImageUrl);
 
-    setSaving(true);
-    setSuccessMessage("");
-    setErrorMessage("");
-
-    try {
-      console.log("Saving collection:", {
+    const res = await fetch("/api/admin/collections", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         id: collection.id,
         hero_image_url: heroImageUrl,
-      });
+      }),
+    });
 
-      const res = await fetch("/api/admin/collections", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: collection.id,
-          hero_image_url: heroImageUrl,
-          title: title.trim(),
-          description: description.trim() || null,
-        }),
-      });
-
-      const data = (await res.json()) as {
-        error?: string | null;
-        message?: string;
-        data?: CollectionRow | null;
-      };
-      console.log("Save response:", res.status, data);
-
-      if (!res.ok) {
-        setErrorMessage(
-          data?.error ||
-            data?.message ||
-            "Save failed — status " + res.status,
-        );
-      } else {
-        setSuccessMessage("Saved successfully");
-        if (data?.data) onUpdated(data.data);
-      }
-    } catch (err) {
-      console.error("Save error:", err);
-      setErrorMessage(
-        err instanceof Error ? err.message : "Something went wrong",
-      );
-    } finally {
-      setSaving(false);
-    }
+    const text = await res.text();
+    alert("Response status: " + res.status + " — body: " + text);
   };
 
   const slugText = collection.slug ?? "";
@@ -309,10 +274,7 @@ function CollectionEditCard({
   return (
     <div className="flex flex-col overflow-hidden rounded-xl border border-brand-text/10 bg-white text-left shadow-sm transition-shadow hover:border-brand-primary/40 hover:shadow-md">
       <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void handleSave();
-        }}
+        onSubmit={(e) => e.preventDefault()}
         className="flex flex-1 flex-col gap-3 p-4"
       >
         <div className="flex flex-wrap items-start justify-between gap-2">
@@ -438,8 +400,8 @@ function CollectionEditCard({
         </label>
 
         <button
-          type="submit"
-          disabled={saving || heroImageUploading}
+          type="button"
+          onClick={handleSave}
           className="mt-1 rounded-md bg-brand-primary px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
         >
           {saving ? "Saving…" : "Save changes"}
