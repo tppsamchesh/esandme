@@ -54,6 +54,13 @@ export default async function CollectionPage({
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 md:py-16">
+      <pre className="mb-6 max-h-[min(70vh,32rem)] overflow-auto rounded border border-amber-300/80 bg-amber-50 p-4 text-left font-mono text-xs text-zinc-900">
+        {JSON.stringify(
+          { slug, collection, products: collection.products },
+          null,
+          2
+        )}
+      </pre>
       <header className="border-b border-black/10 pb-8">
         <h1 className="font-heading text-4xl font-medium tracking-tight text-brand-text md:text-5xl">
           {collection.title}
