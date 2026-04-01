@@ -237,19 +237,19 @@ export default async function ProductPage({
             >
               You may also like
             </h2>
-            <ul className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <ul className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
               {relatedProducts.map((rp) => (
                 <li key={rp.id}>
                   <Link
                     href={`/products/${rp.slug}`}
-                    className="group block cursor-pointer overflow-hidden rounded-xl border border-brand-text/10 bg-brand-bg shadow-sm transition-shadow hover:border-brand-primary/35 hover:shadow-md"
+                    className="group block cursor-pointer overflow-hidden rounded-xl border border-brand-text/10 bg-white shadow-sm transition-shadow hover:border-brand-primary/35 hover:shadow-md"
                   >
-                    <div className="relative aspect-square w-full overflow-hidden bg-brand-secondary/25">
+                    <div className="relative aspect-square w-full overflow-hidden rounded-t-xl bg-brand-secondary/25">
                       {rp.imageUrl ? (
                         <img
                           src={rp.imageUrl}
                           alt=""
-                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                          className="h-full w-full object-cover"
                         />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center font-sans text-xs text-brand-text/35">
@@ -257,11 +257,11 @@ export default async function ProductPage({
                         </div>
                       )}
                     </div>
-                    <div className="p-3">
-                      <p className="font-heading text-sm font-medium leading-snug text-brand-text group-hover:text-brand-primary">
+                    <div className="p-2">
+                      <p className="font-heading text-xs font-medium leading-snug text-brand-text group-hover:text-brand-primary">
                         {rp.title}
                       </p>
-                      <p className="mt-1 font-sans text-sm tabular-nums text-brand-text/60">
+                      <p className="mt-0.5 font-sans text-xs tabular-nums text-brand-text/60">
                         £{(rp.price / 100).toFixed(2)}
                       </p>
                     </div>
