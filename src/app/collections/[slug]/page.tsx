@@ -1,5 +1,5 @@
 import { getSupabase as createClient } from "@/lib/supabase/client";
-import Link from "next/link";
+import { CollectionProductCard } from "./CollectionProductCard";
 
 export const revalidate = 0;
 export const dynamic = "force-dynamic";
@@ -114,42 +114,21 @@ export default async function CollectionPage({
             No products in this collection yet
           </p>
         ) : (
-          <div className="mt-10 grid grid-cols-2 gap-5 gap-y-8 md:mt-12 md:grid-cols-3 md:gap-8">
+          <div className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3 md:mt-12 lg:grid-cols-4">
             {products.map((product) => {
               const imageUrl = images?.find(
                 (img) => img.product_id === product.id
               )?.url;
 
               return (
-                <Link
+                <CollectionProductCard
                   key={product.id}
-                  href={`/products/${product.slug}`}
-                  className="group block"
-                >
-                  <article className="flex h-full flex-col overflow-hidden rounded-xl border border-brand-text/10 bg-brand-bg shadow-sm transition-shadow duration-300 hover:border-brand-primary/35 hover:shadow-md">
-                    <div className="relative aspect-square w-full overflow-hidden bg-brand-secondary/25">
-                      {imageUrl ? (
-                        <img
-                          src={imageUrl}
-                          alt={product.title}
-                          className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center font-sans text-sm text-brand-text/35">
-                          No image
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex flex-1 flex-col p-4">
-                      <h2 className="font-heading text-lg font-medium leading-snug text-brand-text group-hover:text-brand-primary md:text-xl">
-                        {product.title}
-                      </h2>
-                      <p className="mt-2 font-sans text-sm font-medium tabular-nums text-brand-primary md:text-base">
-                        £{(product.price / 100).toFixed(2)}
-                      </p>
-                    </div>
-                  </article>
-                </Link>
+                  productId={product.id}
+                  title={product.title}
+                  slug={product.slug}
+                  pricePence={product.price}
+                  imageUrl={imageUrl ?? null}
+                />
               );
             })}
           </div>
