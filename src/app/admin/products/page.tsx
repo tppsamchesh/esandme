@@ -18,12 +18,6 @@ export const metadata: Metadata = {
   title: "Products",
 };
 
-const COLLECTION_TITLES = [
-  "Muslins",
-  "Baby Changing",
-  "Snuggy Bunny",
-] as const;
-
 type ProductAdminRow = ProductListItem & {
   hidden?: boolean | null;
   comparePrice?: number | null;
@@ -363,7 +357,8 @@ export async function deleteProduct(formData: FormData) {
 const COLLECTION_FILTERS = [
   { value: "all", label: "All collections" },
   { value: "Muslins", label: "Muslins" },
-  { value: "Baby Changing", label: "Baby Changing" },
+  { value: "Changing Mats", label: "Changing Mats" },
+  { value: "Changing Bags", label: "Changing Bags" },
   { value: "Snuggy Bunny", label: "Snuggy Bunny" },
 ] as const;
 
@@ -403,21 +398,17 @@ export default async function AdminProductsPage({
     supabase
       .from("collections")
       .select("id, title")
-      .in("title", [...COLLECTION_TITLES]),
+      .order("title", { ascending: true }),
   ]);
   const rawCollections = (colRes.data ?? []) as Array<{
     id: string;
     title: string;
   }>;
 
-  const order = new Map<string, number>(
-    COLLECTION_TITLES.map((title, index) => [title, index]),
-  );
-  const collections = [...rawCollections]
-    .map((c) => ({ _id: c.id, title: c.title }))
-    .sort(
-      (a, b) => (order.get(a.title) ?? 99) - (order.get(b.title) ?? 99),
-    );
+  const collections = rawCollections.map((c) => ({
+    _id: c.id,
+    title: c.title,
+  }));
 
   const stats = globalStats(products);
   const returnTo = buildAdminProductsPath({
@@ -1111,6 +1102,35 @@ document.addEventListener('click',function(e){
 var t=e.target;if(!t||!t.closest)return;
 var c=t.closest('[data-close-details]');
 if(c){e.preventDefault();var d=c.closest('details');if(d)d.open=false;}
+},true);
+
+function slugifyFromTitle(s){
+var t=String(s||'');
+t=t.replace(/ - /g,'-');
+return t.toLowerCase().trim()
+.replace(/[^\\w\\s-]/g,'')
+.replace(/[\\s_]+/g,'-')
+.replace(/^-+|-+$/g,'')
+.replace(/-+/g,'-');
+}
+
+document.addEventListener('input',function(e){
+var inp=e.target;
+if(!inp||!inp.getAttribute||inp.getAttribute('data-ep-field')!=='title')return;
+var form=inp.closest('[data-edit-product-form]');
+if(!form)return;
+if(form._epSlugManual)return;
+var slugInp=form.querySelector('[data-ep-field="slug"]');
+if(!slugInp)return;
+slugInp.value=slugifyFromTitle(inp.value);
+},true);
+
+document.addEventListener('input',function(e){
+var inp=e.target;
+if(!inp||!inp.getAttribute||inp.getAttribute('data-ep-field')!=='slug')return;
+var form=inp.closest('[data-edit-product-form]');
+if(!form)return;
+form._epSlugManual=true;
 },true);
 
 function parseGbp(s){

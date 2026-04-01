@@ -9,11 +9,13 @@ export type AdminCollectionOption = { _id: string; title: string };
 
 function slugify(value: string): string {
   return value
+    .replace(/ - /g, "-")
     .toLowerCase()
     .trim()
     .replace(/[^\w\s-]/g, "")
     .replace(/[\s_]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+    .replace(/^-+|-+$/g, "")
+    .replace(/-+/g, "-");
 }
 
 function poundsToPence(s: string): number | null {
