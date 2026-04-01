@@ -1,19 +1,34 @@
 import Link from "next/link";
+import Image from "next/image";
 
-const collections = [
-  {
-    href: "/collections/baby-changing",
-    label: "Baby Changing",
-  },
+const collections: {
+  href: string;
+  label: string;
+  imageUrl: string | null;
+}[] = [
   {
     href: "/collections/muslins",
     label: "Muslins",
+    imageUrl:
+      "https://zgskeielwbqasawbtjsg.supabase.co/storage/v1/object/public/product-images/Blossom%20Muslin%20in%20a%20nursery.png",
+  },
+  {
+    href: "/collections/changing-mats",
+    label: "Changing Mats",
+    imageUrl: null,
+  },
+  {
+    href: "/collections/changing-bags",
+    label: "Changing Bags",
+    imageUrl:
+      "https://zgskeielwbqasawbtjsg.supabase.co/storage/v1/object/public/product-images/Changing%20Bag%20Polkadot%20Coffee%20Shop.png",
   },
   {
     href: "/collections/snuggy-bunny",
     label: "Snuggy Bunny",
+    imageUrl: null,
   },
-] as const;
+];
 
 const reviews = [
   {
@@ -154,12 +169,35 @@ export default function Home() {
           >
             Shop our collections
           </h2>
-          <ul className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3 lg:gap-10">
-            {collections.map(({ href, label }) => (
+          <ul className="mt-12 grid grid-cols-2 gap-6 md:grid-cols-4 md:gap-8">
+            {collections.map(({ href, label, imageUrl }) => (
               <li key={href}>
-                <Link href={href} className="group block">
-                  <div className="aspect-square w-full rounded-lg bg-brand-secondary/35 transition-colors group-hover:bg-brand-secondary/50" />
-                  <p className="mt-4 text-center text-base font-medium text-brand-text transition-colors group-hover:text-brand-primary">
+                <Link
+                  href={href}
+                  className="group block cursor-pointer"
+                >
+                  <div className="relative aspect-square w-full overflow-hidden rounded-lg">
+                    {imageUrl ? (
+                      <Image
+                        src={imageUrl}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 50vw, 25vw"
+                        unoptimized
+                      />
+                    ) : (
+                      <div
+                        className="h-full w-full bg-[#E8E0D5]"
+                        aria-hidden
+                      />
+                    )}
+                    <div
+                      className="pointer-events-none absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/35"
+                      aria-hidden
+                    />
+                  </div>
+                  <p className="mt-4 text-center font-heading text-base font-medium text-brand-text transition-colors group-hover:text-brand-primary">
                     {label}
                   </p>
                 </Link>
