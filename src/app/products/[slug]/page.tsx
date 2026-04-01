@@ -1,7 +1,9 @@
 import { fetchProductBySlug } from "@/lib/supabase/queries";
+import { getSupabase } from "@/lib/supabase/client";
 import AddToCart from "@/components/commerce/AddToCart";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ProductImageGallery } from "./ProductImageGallery";
 
 type ProductDoc = {
   title: string;
@@ -80,6 +82,68 @@ export default async function ProductPage({
   const collectionSlug = product.collection?.slug?.current;
   const collectionTitle = product.collection?.title;
 
+  const supabase = getSupabase();
+
+  const { data: images } = await supabase
+    .from("product_images")
+    .select("id, url, position")
+    .eq("product_id", product._id)
+    .order("position", { ascending: true });
+
+  const { data: productMeta } = await supabase
+    .from("products")
+    .select("collection_id")
+    .eq("id", product._id)
+    .maybeSingle();
+
+  type RelatedRow = {
+    id: string;
+    title: string;
+    slug: string;
+    price: number;
+    imageUrl: string | null;
+  };
+
+  let relatedProducts: RelatedRow[] = [];
+
+  if (productMeta?.collection_id) {
+    const { data: related } = await supabase
+      .from("products")
+      .select("id, title, slug, price")
+      .eq("collection_id", productMeta.collection_id)
+      .eq("hidden", false)
+      .neq("id", product._id)
+      .limit(4);
+
+    const rel = related ?? [];
+    if (rel.length > 0) {
+      const { data: relatedImageRows } = await supabase
+        .from("product_images")
+        .select("product_id, url, position")
+        .in(
+          "product_id",
+          rel.map((r) => r.id),
+        )
+        .order("position", { ascending: true });
+
+      const imgRows = relatedImageRows ?? [];
+      relatedProducts = rel.map((r) => {
+        const forProduct = imgRows
+          .filter((img) => img.product_id === r.id)
+          .sort(
+            (a, b) => (a.position ?? 0) - (b.position ?? 0),
+          );
+        return {
+          id: r.id,
+          title: r.title,
+          slug: r.slug,
+          price: r.price,
+          imageUrl: forProduct[0]?.url ?? null,
+        };
+      });
+    }
+  }
+
   const schemaDescription =
     typeof product.description === "string" ? product.description : "";
 
@@ -127,15 +191,10 @@ export default async function ProductPage({
         ) : null}
 
         <div className="grid grid-cols-1 gap-12 md:grid-cols-2 md:gap-14">
-          <div className="relative aspect-square overflow-hidden rounded-xl bg-[#E8E0D5]">
-            {product.images?.[0] ? (
-              <img
-                src={product.images[0]}
-                alt={product.title}
-                className="absolute inset-0 h-full w-full object-cover"
-              />
-            ) : null}
-          </div>
+          <ProductImageGallery
+            images={images ?? []}
+            productTitle={product.title}
+          />
 
           <div>
             <h1 className="font-heading text-4xl font-medium tracking-tight text-brand-text">
@@ -166,6 +225,52 @@ export default async function ProductPage({
             </div>
           </div>
         </div>
+
+        {relatedProducts.length > 0 ? (
+          <section
+            className="mt-16 border-t border-black/10 pt-14 md:mt-20 md:pt-16"
+            aria-labelledby="related-heading"
+          >
+            <h2
+              id="related-heading"
+              className="font-heading text-2xl font-medium text-brand-text md:text-3xl"
+            >
+              You may also like
+            </h2>
+            <ul className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
+              {relatedProducts.map((rp) => (
+                <li key={rp.id}>
+                  <Link
+                    href={`/products/${rp.slug}`}
+                    className="group block cursor-pointer overflow-hidden rounded-xl border border-brand-text/10 bg-brand-bg shadow-sm transition-shadow hover:border-brand-primary/35 hover:shadow-md"
+                  >
+                    <div className="relative aspect-square w-full overflow-hidden bg-brand-secondary/25">
+                      {rp.imageUrl ? (
+                        <img
+                          src={rp.imageUrl}
+                          alt=""
+                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center font-sans text-xs text-brand-text/35">
+                          No image
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-3">
+                      <p className="font-heading text-sm font-medium leading-snug text-brand-text group-hover:text-brand-primary">
+                        {rp.title}
+                      </p>
+                      <p className="mt-1 font-sans text-sm tabular-nums text-brand-text/60">
+                        £{(rp.price / 100).toFixed(2)}
+                      </p>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
         </div>
 
         {product.reviews?.length > 0 ? (
