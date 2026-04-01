@@ -96,7 +96,6 @@ export type CreateProductInput = {
 export async function createProduct(
   input: CreateProductInput,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  console.log("[IMAGE DEBUG] createProduct called, imageUrls:", input.imageUrls);
   const title = input.title.trim();
   const slugCurrent = input.slug.trim().toLowerCase();
   const description = input.description.trim();

@@ -61,8 +61,8 @@ export function CreateProductForm({
   );
   const [published, setPublished] = useState(true);
   const [variants, setVariants] = useState<VariantDraft[]>([]);
-  const [imageFiles, setImageFiles] = useState<File[]>([]);
-  const [uploadingImages, setUploadingImages] = useState(false);
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [imageUploading, setImageUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -81,8 +81,8 @@ export function CreateProductForm({
     setCollectionId(collections[0]?._id ?? "");
     setPublished(true);
     setVariants([]);
-    setImageFiles([]);
-    setUploadingImages(false);
+    setImageUrls([]);
+    setImageUploading(false);
     setError(null);
   }, [collections]);
 
@@ -104,12 +104,46 @@ export function CreateProductForm({
     setVariants((prev) => prev.filter((_, j) => j !== i));
   }
 
+  async function handleImageInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const list = e.target.files;
+    if (!list?.length) return;
+
+    const files = Array.from(list);
+    setImageUploading(true);
+    try {
+      const newUrls: string[] = [];
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/api/admin/upload-image", {
+          method: "POST",
+          body: formData,
+        });
+        const data = (await res.json().catch(() => null)) as {
+          url?: string;
+          error?: string;
+        } | null;
+        if (!res.ok || !data?.url || typeof data.url !== "string") {
+          alert(
+            data?.error && typeof data.error === "string"
+              ? data.error
+              : `Image upload failed (${res.status}).`,
+          );
+          return;
+        }
+        newUrls.push(data.url);
+      }
+      setImageUrls((prev) => [...prev, ...newUrls]);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Image upload failed.");
+    } finally {
+      setImageUploading(false);
+      e.target.value = "";
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    console.log(
-      "[IMAGE DEBUG] handleSubmit fired, imageFiles.length:",
-      imageFiles.length,
-    );
     setError(null);
     setSuccess(null);
 
@@ -157,57 +191,6 @@ export function CreateProductForm({
       };
     });
 
-    const imageUrls: string[] = [];
-
-    if (imageFiles.length > 0) {
-      setUploadingImages(true);
-    }
-    try {
-      for (const file of imageFiles) {
-        console.log(
-          "[IMAGE DEBUG] About to upload:",
-          file.name,
-          "size:",
-          file.size,
-        );
-        const formData = new FormData();
-        formData.append("file", file);
-        const res = await fetch("/api/admin/upload-image", {
-          method: "POST",
-          body: formData,
-        });
-        console.log("[IMAGE DEBUG] Upload response status:", res.status);
-        const data = (await res.json().catch(() => null)) as {
-          url?: string;
-          error?: string;
-        } | null;
-        console.log("Upload result:", res.status, data);
-        if (!res.ok) {
-          setError(
-            data?.error && typeof data.error === "string"
-              ? data.error
-              : `Image upload failed (${res.status})`,
-          );
-          return;
-        }
-        if (!data?.url || typeof data.url !== "string") {
-          setError("Invalid response from image upload.");
-          return;
-        }
-        imageUrls.push(data.url);
-      }
-
-      if (imageFiles.length > 0 && imageUrls.length === 0) {
-        setError("Image upload failed — please try again");
-        return;
-      }
-    } catch (err) {
-      console.error("[IMAGE DEBUG] Upload loop error:", err);
-      throw err;
-    } finally {
-      setUploadingImages(false);
-    }
-
     startTransition(async () => {
       const res = await createProduct({
         title: title.trim(),
@@ -217,7 +200,7 @@ export function CreateProductForm({
         collectionId,
         published,
         variants: variantPayload,
-        imageUrls,
+        imageUrls: [...imageUrls],
       });
       if (!res.ok) {
         setError(res.error);
@@ -351,25 +334,25 @@ export function CreateProductForm({
             <span className="text-xs font-medium uppercase tracking-wide text-brand-text/60">
               Images
             </span>
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={(e) => {
-                const list = e.target.files;
-                setImageFiles(list ? Array.from(list) : []);
-              }}
-              className="mt-2 block w-full text-sm text-brand-text/80 file:mr-3 file:rounded-md file:border-0 file:bg-brand-bg file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-text"
-            />
-            {uploadingImages ? (
-              <p className="mt-2 text-sm text-brand-text/80" aria-live="polite">
-                Uploading images...
-              </p>
-            ) : null}
-            {imageFiles.length > 0 ? (
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                disabled={imageUploading}
+                onChange={handleImageInputChange}
+                className="block min-w-0 flex-1 text-sm text-brand-text/80 file:mr-3 file:rounded-md file:border-0 file:bg-brand-bg file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-text disabled:opacity-50"
+              />
+              {imageUploading ? (
+                <span className="text-sm text-brand-text/70" aria-live="polite">
+                  Uploading...
+                </span>
+              ) : null}
+            </div>
+            {imageUrls.length > 0 ? (
               <p className="mt-2 text-xs text-brand-text/60">
-                {imageFiles.length} file{imageFiles.length === 1 ? "" : "s"}{" "}
-                selected
+                {imageUrls.length} image{imageUrls.length === 1 ? "" : "s"}{" "}
+                uploaded
               </p>
             ) : null}
           </div>
@@ -508,13 +491,13 @@ export function CreateProductForm({
               type="submit"
               disabled={
                 pending ||
-                uploadingImages ||
+                imageUploading ||
                 collections.length === 0
               }
               className="rounded-md bg-brand-primary px-4 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
-              {uploadingImages
-                ? "Uploading images..."
+              {imageUploading
+                ? "Uploading..."
                 : pending
                   ? "Saving…"
                   : "Save product"}
