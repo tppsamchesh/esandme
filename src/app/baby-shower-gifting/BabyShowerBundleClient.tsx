@@ -91,7 +91,7 @@ export function BabyShowerBundleClient({
             No products available right now.
           </p>
         ) : (
-          <ul className="mt-10 grid grid-cols-2 gap-4 md:grid-cols-3 md:gap-6">
+          <ul className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {products.map((p) => {
               const selected = selectedIds.has(p.id);
               const listPence = p.price;
@@ -106,14 +106,14 @@ export function BabyShowerBundleClient({
                         : "hover:ring-brand-primary/40"
                     } `}
                   >
-                    <div className="relative aspect-square w-full bg-brand-bg">
+                    <div className="relative aspect-[4/3] w-full bg-brand-bg">
                       {p.imageUrl ? (
                         <Image
                           src={p.imageUrl}
                           alt=""
                           fill
                           className="object-cover"
-                          sizes="(max-width: 768px) 50vw, 33vw"
+                          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
                           unoptimized
                         />
                       ) : (
@@ -125,35 +125,33 @@ export function BabyShowerBundleClient({
                         </div>
                       )}
                       {selected ? (
-                        <div
-                          className="absolute inset-0 flex items-center justify-center bg-black/25 transition-colors"
+                        <span
+                          className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-brand-primary text-white shadow-sm"
                           aria-hidden
                         >
-                          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-md">
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              className="h-7 w-7 text-brand-primary"
-                              aria-hidden
-                            >
-                              <path
-                                d="M20 6L9 17l-5-5"
-                                stroke="currentColor"
-                                strokeWidth="2.5"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
-                          </span>
-                        </div>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            className="h-3.5 w-3.5"
+                            aria-hidden
+                          >
+                            <path
+                              d="M20 6L9 17l-5-5"
+                              stroke="currentColor"
+                              strokeWidth="2.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </span>
                       ) : null}
                     </div>
-                    <div className="p-3 md:p-4">
-                      <p className="font-heading text-base font-medium leading-snug text-brand-text md:text-lg">
+                    <div className="p-2">
+                      <p className="font-heading text-xs font-medium leading-snug text-brand-text">
                         {p.title}
                       </p>
-                      <p className="mt-1 font-sans text-sm text-brand-text/80">
+                      <p className="mt-0.5 font-sans text-xs text-brand-text/80">
                         {formatGbp(listPence)}
                       </p>
                     </div>
