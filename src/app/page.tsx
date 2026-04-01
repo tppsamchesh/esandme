@@ -1,6 +1,9 @@
 import Link from "next/link";
 import Image from "next/image";
 
+const BABY_SHOWER_IMAGE =
+  "https://zgskeielwbqasawbtjsg.supabase.co/storage/v1/object/public/product-images/Baby%20Shower%20basket.png";
+
 const collections: {
   href: string;
   label: string;
@@ -211,25 +214,37 @@ export default function Home() {
 
       {/* Baby Shower Gifting */}
       <section
-        className="border-t border-black/5 bg-brand-secondary/15 px-4 py-16 md:py-24"
+        className="border-t border-black/5 bg-brand-bg py-20"
         aria-labelledby="baby-shower-heading"
       >
-        <div className="mx-auto max-w-3xl text-center">
-          <h2
-            id="baby-shower-heading"
-            className="font-heading text-3xl font-medium text-brand-text md:text-4xl"
-          >
-            Baby Shower Gifting
-          </h2>
-          <p className="mt-4 font-sans text-base text-brand-text/85 md:text-lg">
-            Pick your favourites and save 10% when you bundle.
-          </p>
-          <Link
-            href="/baby-shower-gifting"
-            className="mt-8 inline-flex min-h-11 cursor-pointer items-center justify-center rounded-md bg-brand-primary px-8 text-sm font-medium text-white transition-opacity hover:opacity-90"
-          >
-            Build a bundle
-          </Link>
+        <div className="mx-auto flex w-full max-w-7xl flex-col md:min-h-[480px] md:flex-row md:items-stretch">
+          <div className="flex flex-1 flex-col justify-center px-6 py-2 md:w-1/2 md:px-12 md:py-12 lg:pl-16 lg:pr-12">
+            <h2
+              id="baby-shower-heading"
+              className="font-heading text-3xl font-medium tracking-tight text-brand-text md:text-4xl"
+            >
+              Baby Shower Gifting
+            </h2>
+            <p className="mt-5 max-w-md font-sans text-base leading-relaxed text-brand-text/65 md:text-lg">
+              Pick your favourites and save 10% when you bundle.
+            </p>
+            <Link
+              href="/baby-shower-gifting"
+              className="mt-8 inline-flex w-fit min-h-11 cursor-pointer items-center justify-center rounded-md bg-brand-primary px-8 text-sm font-medium text-white transition-opacity hover:opacity-90"
+            >
+              Build a bundle
+            </Link>
+          </div>
+          <div className="relative mt-10 min-h-[280px] w-full overflow-hidden rounded-xl md:mt-0 md:min-h-[480px] md:w-1/2 md:rounded-none">
+            <Image
+              src={BABY_SHOWER_IMAGE}
+              alt=""
+              fill
+              className="object-cover"
+              sizes="(max-width: 768px) 100vw, 50vw"
+              unoptimized
+            />
+          </div>
         </div>
       </section>
 
