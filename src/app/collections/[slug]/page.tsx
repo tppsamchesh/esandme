@@ -65,59 +65,73 @@ export default async function CollectionPage({
         ) : null}
       </header>
 
-      <div className="mt-10 grid grid-cols-2 gap-6 md:grid-cols-3">
-        {collection.products?.map((product: any) => {
-          const thumb =
-            typeof product.thumbUrl === "string" && product.thumbUrl
-              ? product.thumbUrl
-              : product.images?.[0];
-          return (
-          <Link
-            key={product._id}
-            href={`/products/${product.slug.current}`}
-            className="group block"
-          >
-            <article className="rounded-lg transition-shadow duration-300 hover:shadow-md">
-              <div className="relative aspect-square overflow-hidden rounded-lg bg-[#E8E0D5]">
-                {thumb ? (
-                  <img
-                    src={thumb}
-                    alt={product.title}
-                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                  />
-                ) : null}
-                {product.comparePrice != null &&
-                typeof product.comparePrice === "number" ? (
-                  <span className="absolute left-2 top-2 rounded-full bg-[#8BA888]/95 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white shadow-sm">
-                    Sale
-                  </span>
-                ) : null}
-              </div>
-              <div className="pt-4">
-                <h2 className="font-sans text-base font-medium text-brand-text">
-                  {product.title}
-                </h2>
-                {product.comparePrice != null &&
-                typeof product.comparePrice === "number" ? (
-                  <p className="mt-1 flex flex-wrap items-baseline gap-2 font-sans text-sm">
-                    <span className="font-medium text-brand-text/45 line-through">
-                      £{(product.comparePrice / 100).toFixed(2)}
-                    </span>
-                    <span className="font-medium text-[#8BA888]">
-                      £{(product.price / 100).toFixed(2)}
-                    </span>
-                  </p>
-                ) : (
-                  <p className="mt-1 font-sans text-sm font-medium text-brand-primary">
-                    £{(product.price / 100).toFixed(2)}
-                  </p>
-                )}
-              </div>
-            </article>
-          </Link>
-          );
-        })}
-      </div>
+      {!collection.products || collection.products.length === 0 ? (
+        <p className="mt-10 text-center text-base text-brand-text/70">
+          No products yet
+        </p>
+      ) : (
+        <div className="mt-10 grid grid-cols-2 gap-6 md:grid-cols-3">
+          {collection.products.map((product: {
+            _id: string;
+            title: string;
+            slug: { current?: string };
+            price: number;
+            comparePrice?: number | null;
+            thumbUrl?: string | null;
+            images?: string[];
+          }) => {
+            const thumb =
+              typeof product.thumbUrl === "string" && product.thumbUrl
+                ? product.thumbUrl
+                : product.images?.[0];
+            return (
+              <Link
+                key={product._id}
+                href={`/products/${product.slug.current ?? ""}`}
+                className="group block"
+              >
+                <article className="rounded-lg transition-shadow duration-300 hover:shadow-md">
+                  <div className="relative aspect-square overflow-hidden rounded-lg bg-[#E8E0D5]">
+                    {thumb ? (
+                      <img
+                        src={thumb}
+                        alt={product.title}
+                        className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                    ) : null}
+                    {product.comparePrice != null &&
+                    typeof product.comparePrice === "number" ? (
+                      <span className="absolute left-2 top-2 rounded-full bg-[#8BA888]/95 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white shadow-sm">
+                        Sale
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="pt-4">
+                    <h2 className="font-sans text-base font-medium text-brand-text">
+                      {product.title}
+                    </h2>
+                    {product.comparePrice != null &&
+                    typeof product.comparePrice === "number" ? (
+                      <p className="mt-1 flex flex-wrap items-baseline gap-2 font-sans text-sm">
+                        <span className="font-medium text-brand-text/45 line-through">
+                          £{(product.comparePrice / 100).toFixed(2)}
+                        </span>
+                        <span className="font-medium text-[#8BA888]">
+                          £{(product.price / 100).toFixed(2)}
+                        </span>
+                      </p>
+                    ) : (
+                      <p className="mt-1 font-sans text-sm font-medium text-brand-primary">
+                        £{(product.price / 100).toFixed(2)}
+                      </p>
+                    )}
+                  </div>
+                </article>
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

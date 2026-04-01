@@ -89,12 +89,6 @@ function mapProductImages(rows: ImageRow[] | undefined): string[] {
   return sorted.map((r) => r.url).filter(Boolean);
 }
 
-/** First image URL for a product (lowest `position`). */
-function firstImageUrl(rows: ImageRow[] | undefined): string | null {
-  const urls = mapProductImages(rows);
-  return urls[0] ?? null;
-}
-
 /** Former `allCollectionsQuery` — list all collections. */
 export async function fetchAllCollectionsPublic(): Promise<
   Array<{
@@ -276,82 +270,67 @@ export async function fetchCollectionBySlug(slug: string) {
   const slugClean = slug.trim();
   if (!slugClean) return null;
 
-  const collectionSelect =
-    "id, slug, title, description, hero_image_url, seo_title, seo_description";
-
-  let { data: col, error } = await supabase
+  const { data: collection, error: collectionError } = await supabase
     .from("collections")
-    .select(collectionSelect)
+    .select(
+      "id, title, slug, description, hero_image_url, seo_title, seo_description",
+    )
     .eq("slug", slugClean)
-    .maybeSingle();
+    .single();
 
-  if (!error && !col) {
-    const second = await supabase
-      .from("collections")
-      .select(collectionSelect)
-      .ilike("slug", slugClean)
-      .maybeSingle();
-    col = second.data;
-    error = second.error;
-  }
+  if (collectionError || !collection) return null;
 
-  if (error || !col) return null;
-  const c = col as CollectionRow;
+  const c = collection as CollectionRow;
 
-  const { data: prows, error: productsError } = await supabase
+  const { data: productRows, error: productsError } = await supabase
     .from("products")
-    .select("id, slug, title, price, compare_price, hidden, collection_id")
-    .eq("collection_id", c.id);
+    .select("id, title, slug, price, compare_price")
+    .eq("collection_id", c.id)
+    .eq("hidden", false);
 
   if (productsError) {
     console.error("fetchCollectionBySlug products:", productsError.message);
   }
 
-  const productsRaw = (prows ?? []) as Array<{
+  const products = (productRows ?? []) as Array<{
     id: string;
-    slug: string;
     title: string;
+    slug: string;
     price: number;
     compare_price: number | null;
-    hidden: boolean | null;
-    collection_id: string | null;
   }>;
-  const filtered = productsRaw.filter(
-    (p) =>
-      p.collection_id === c.id && p.hidden !== true,
-  );
-  const pids = filtered.map((p) => p.id);
 
-  let variants: VariantRow[] = [];
-  let images: ImageRow[] = [];
-  if (pids.length) {
-    const [vr, ir] = await Promise.all([
-      supabase.from("product_variants").select("*").in("product_id", pids),
-      supabase
-        .from("product_images")
-        .select("product_id, url, position")
-        .in("product_id", pids)
-        .order("position", { ascending: true }),
-    ]);
-    variants = (vr.data ?? []) as VariantRow[];
-    images = (ir.data ?? []) as ImageRow[];
+  const pids = products.map((p) => p.id);
+
+  let imageRows: ImageRow[] = [];
+  if (pids.length > 0) {
+    const { data: images, error: imagesError } = await supabase
+      .from("product_images")
+      .select("product_id, url, position")
+      .in("product_id", pids)
+      .order("position", { ascending: true });
+
+    if (imagesError) {
+      console.error("fetchCollectionBySlug images:", imagesError.message);
+    }
+    imageRows = (images ?? []) as ImageRow[];
   }
 
-  const vByPid = groupByProductId(variants);
-  const imgByPid = groupByProductId(images);
+  const imgByPid = groupByProductId(imageRows);
 
-  const products = filtered.map((p) => {
-    const imgRows = imgByPid.get(p.id);
-    const imageUrls = mapProductImages(imgRows);
+  const productsOut = products.map((p) => {
+    const rows = imgByPid.get(p.id);
+    const imageUrls = mapProductImages(rows);
+    const thumbUrl = imageUrls[0] ?? null;
     return {
       _id: p.id,
       title: p.title,
       slug: slugRef(p.slug),
       price: p.price,
       comparePrice: p.compare_price != null ? p.compare_price : null,
-      thumbUrl: firstImageUrl(imgRows),
+      thumbUrl,
       images: imageUrls,
-      variants: (vByPid.get(p.id) ?? []).map((v) => mapVariant(v as VariantRow)),
+      variants: [],
     };
   });
 
@@ -363,7 +342,7 @@ export async function fetchCollectionBySlug(slug: string) {
     heroImage: c.hero_image_url,
     seoTitle: c.seo_title,
     seoDescription: c.seo_description,
-    products,
+    products: productsOut,
   };
 }
 
