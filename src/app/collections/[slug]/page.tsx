@@ -1,6 +1,9 @@
 import { getSupabase as createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 
+export const revalidate = 0;
+export const dynamic = "force-dynamic";
+
 type CollectionRow = {
   id: string;
   title: string;
