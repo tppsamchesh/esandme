@@ -1,6 +1,18 @@
 import { adminSupabase } from "@/lib/supabase/admin-client";
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
+function normalizeHeroImageUrl(
+  value: unknown,
+): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const s = String(value).trim();
+  return s.length === 0 ? null : s;
+}
+
 export async function GET() {
   const { data, error } = await adminSupabase
     .from("collections")
@@ -46,10 +58,7 @@ export async function POST(req: Request) {
 
   const description =
     typeof body.description === "string" ? body.description.trim() : null;
-  const hero_image_url =
-    body.hero_image_url === null || body.hero_image_url === undefined
-      ? null
-      : String(body.hero_image_url);
+  const hero_image_url = normalizeHeroImageUrl(body.hero_image_url);
 
   const { data, error } = await adminSupabase
     .from("collections")
@@ -110,10 +119,7 @@ export async function PATCH(req: Request) {
 
   const description =
     typeof body.description === "string" ? body.description.trim() : null;
-  const hero_image_url =
-    body.hero_image_url === null || body.hero_image_url === undefined
-      ? null
-      : String(body.hero_image_url);
+  const hero_image_url = normalizeHeroImageUrl(body.hero_image_url);
 
   const { data, error } = await adminSupabase
     .from("collections")

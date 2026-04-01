@@ -46,6 +46,7 @@ async function uploadHeroImage(file: File): Promise<string> {
   const res = await fetch("/api/admin/upload-image", {
     method: "POST",
     body: formData,
+    credentials: "same-origin",
   });
   const data = (await res.json().catch(() => null)) as
     | { url?: string; error?: string }
@@ -65,10 +66,12 @@ function HeroImageField({
   initialUrl,
   onUrlChange,
   inputId,
+  onUploadingChange,
 }: {
   initialUrl: string | null;
   onUrlChange: (url: string | null) => void;
   inputId: string;
+  onUploadingChange?: (uploading: boolean) => void;
 }) {
   const [preview, setPreview] = useState<string | null>(initialUrl);
   const [uploading, setUploading] = useState(false);
@@ -82,6 +85,7 @@ function HeroImageField({
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
+    onUploadingChange?.(true);
     setUploadError(null);
     try {
       const publicUrl = await uploadHeroImage(file);
@@ -93,6 +97,7 @@ function HeroImageField({
       );
     } finally {
       setUploading(false);
+      onUploadingChange?.(false);
       e.target.value = "";
     }
   }
@@ -155,6 +160,7 @@ function CollectionCard({
   const [deleting, setDeleting] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [heroImageUploading, setHeroImageUploading] = useState(false);
   const [heroUrl, setHeroUrl] = useState<string | null>(c.hero_image_url);
 
   useEffect(() => {
@@ -191,6 +197,10 @@ function CollectionCard({
   async function handleSave(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSaveError(null);
+    if (heroImageUploading) {
+      setSaveError("Wait for the hero image to finish uploading.");
+      return;
+    }
     const form = e.currentTarget;
     const fd = new FormData(form);
     const title = String(fd.get("title") ?? "").trim();
@@ -204,6 +214,7 @@ function CollectionCard({
       const res = await fetch(COLLECTIONS_API_PATH, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
         body: JSON.stringify({
           id: c.id,
           title,
@@ -346,6 +357,7 @@ function CollectionCard({
           <HeroImageField
             initialUrl={heroUrl}
             onUrlChange={setHeroUrl}
+            onUploadingChange={setHeroImageUploading}
             inputId={`hero-${c.id}`}
           />
         </div>
@@ -356,10 +368,14 @@ function CollectionCard({
         ) : null}
         <button
           type="submit"
-          disabled={saving}
+          disabled={saving || heroImageUploading}
           className="mt-1 rounded-md bg-brand-primary px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
         >
-          {saving ? "Saving…" : "Save changes"}
+          {heroImageUploading
+            ? "Uploading image…"
+            : saving
+              ? "Saving…"
+              : "Save changes"}
         </button>
       </form>
     </div>
@@ -381,6 +397,7 @@ function AdminCollectionsContent() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [newHeroUrl, setNewHeroUrl] = useState<string | null>(null);
+  const [newHeroUploading, setNewHeroUploading] = useState(false);
 
   const loadCollections = useCallback(async () => {
     setLoading(true);
@@ -428,12 +445,17 @@ function AdminCollectionsContent() {
       setCreateError("Could not generate a URL slug from the title.");
       return;
     }
+    if (newHeroUploading) {
+      setCreateError("Wait for the hero image to finish uploading.");
+      return;
+    }
 
     setCreating(true);
     try {
       const res = await fetch(COLLECTIONS_API_PATH, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
         body: JSON.stringify({
           title,
           slug: slugCurrent,
@@ -573,6 +595,7 @@ function AdminCollectionsContent() {
             <HeroImageField
               initialUrl={newHeroUrl}
               onUrlChange={setNewHeroUrl}
+              onUploadingChange={setNewHeroUploading}
               inputId="hero-new"
             />
           </div>
@@ -583,10 +606,14 @@ function AdminCollectionsContent() {
           ) : null}
           <button
             type="submit"
-            disabled={creating}
+            disabled={creating || newHeroUploading}
             className="rounded-md bg-[#1C1C1C] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
           >
-            {creating ? "Creating…" : "Create collection"}
+            {newHeroUploading
+              ? "Uploading image…"
+              : creating
+                ? "Creating…"
+                : "Create collection"}
           </button>
         </form>
       ) : null}
