@@ -209,6 +209,30 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Baby Shower Gifting */}
+      <section
+        className="border-t border-black/5 bg-brand-secondary/15 px-4 py-16 md:py-24"
+        aria-labelledby="baby-shower-heading"
+      >
+        <div className="mx-auto max-w-3xl text-center">
+          <h2
+            id="baby-shower-heading"
+            className="font-heading text-3xl font-medium text-brand-text md:text-4xl"
+          >
+            Baby Shower Gifting
+          </h2>
+          <p className="mt-4 font-sans text-base text-brand-text/85 md:text-lg">
+            Pick your favourites and save 10% when you bundle.
+          </p>
+          <Link
+            href="/baby-shower-gifting"
+            className="mt-8 inline-flex min-h-11 cursor-pointer items-center justify-center rounded-md bg-brand-primary px-8 text-sm font-medium text-white transition-opacity hover:opacity-90"
+          >
+            Build a bundle
+          </Link>
+        </div>
+      </section>
+
       {/* Reviews */}
       <section
         className="border-t border-black/5 bg-white px-4 py-16 md:py-24"
