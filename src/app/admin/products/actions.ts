@@ -189,7 +189,7 @@ export async function createProduct(
         .insert({
           product_id: productId,
           url: url.trim(),
-          sort_order: sort++,
+          position: sort++,
         });
       if (imgErr) throw imgErr;
     }
