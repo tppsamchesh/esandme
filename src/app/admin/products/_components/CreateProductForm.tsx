@@ -43,6 +43,19 @@ function newVariantRow(): VariantDraft {
   };
 }
 
+function formatCreateProductError(error: unknown): string {
+  if (typeof error === "string") return error;
+  if (error && typeof error === "object" && "message" in error) {
+    const m = (error as { message?: unknown }).message;
+    if (typeof m === "string" && m.length > 0) return m;
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return "Something went wrong";
+  }
+}
+
 export function CreateProductForm({
   collections,
 }: {
@@ -192,6 +205,7 @@ export function CreateProductForm({
     });
 
     startTransition(async () => {
+      console.log("imageUrls at submit:", imageUrls);
       const res = await createProduct({
         title: title.trim(),
         slug: slugValue,
@@ -203,7 +217,7 @@ export function CreateProductForm({
         imageUrls: [...imageUrls],
       });
       if (!res.ok) {
-        setError(res.error);
+        setError(formatCreateProductError(res.error));
         return;
       }
       setSuccess(

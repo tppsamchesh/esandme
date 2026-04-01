@@ -3,6 +3,19 @@
 import { adminSupabase } from "@/lib/supabase/admin-client";
 import { revalidatePath } from "next/cache";
 
+function unknownToErrorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (typeof e === "object" && e !== null && "message" in e) {
+    const m = (e as { message: unknown }).message;
+    if (typeof m === "string" && m.length > 0) return m;
+  }
+  try {
+    return JSON.stringify(e);
+  } catch {
+    return "Something went wrong";
+  }
+}
+
 export type SaveProductInput = {
   id: string;
   title: string;
@@ -167,6 +180,8 @@ export async function createProduct(
       if (vErr) throw vErr;
     }
 
+    console.log("inserting imageUrls:", imageUrls);
+
     let sort = 0;
     for (const url of imageUrls) {
       const { error: imgErr } = await adminSupabase
@@ -182,7 +197,6 @@ export async function createProduct(
     revalidatePath("/admin/products");
     return { ok: true };
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : String(e);
-    return { ok: false, error: message };
+    return { ok: false, error: unknownToErrorMessage(e) };
   }
 }
