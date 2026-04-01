@@ -11,15 +11,6 @@ function formatPublishedDate(iso: string | null | undefined) {
   }).format(d);
 }
 
-type BlogPostCard = {
-  _id: string;
-  title: string;
-  slug: { current: string };
-  publishedAt?: string;
-  excerpt?: string;
-  coverImage?: string | null;
-};
-
 export default async function BlogPage() {
   const posts = await fetchAllBlogPosts();
 

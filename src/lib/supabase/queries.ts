@@ -53,9 +53,12 @@ type BlogRow = {
   excerpt: string | null;
   body: unknown;
   published_at: string | null;
+  meta_description: string | null;
   cover_image_url: string | null;
+  /** @deprecated Use meta_description; kept for older rows */
+  seo_description?: string | null;
   seo_title: string | null;
-  seo_description: string | null;
+  status?: string | null;
 };
 
 function groupByProductId<T extends { product_id: string }>(
@@ -361,8 +364,9 @@ export async function fetchAllBlogPosts(): Promise<
   const { data, error } = await supabase
     .from("blog_posts")
     .select(
-      "id, slug, title, excerpt, published_at, cover_image_url, seo_title, seo_description",
+      "id, slug, title, excerpt, published_at, cover_image_url",
     )
+    .eq("status", "published")
     .order("published_at", { ascending: false });
   if (error || !data) return [];
   return (data as BlogRow[]).map((row) => ({
@@ -382,9 +386,12 @@ export async function fetchBlogPostBySlug(slug: string) {
     .from("blog_posts")
     .select("*")
     .eq("slug", slug)
+    .eq("status", "published")
     .maybeSingle();
   if (error || !data) return null;
   const row = data as BlogRow;
+  const description =
+    row.meta_description ?? row.seo_description ?? undefined;
   return {
     _id: row.id,
     title: row.title,
@@ -393,8 +400,8 @@ export async function fetchBlogPostBySlug(slug: string) {
     excerpt: row.excerpt ?? undefined,
     coverImage: row.cover_image_url,
     body: row.body ?? undefined,
-    seoTitle: row.seo_title ?? undefined,
-    seoDescription: row.seo_description ?? undefined,
+    seoTitle: row.seo_title?.trim() ? row.seo_title : row.title,
+    seoDescription: description,
   };
 }
 

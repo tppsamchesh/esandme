@@ -70,6 +70,7 @@ export async function createBlogPost(
         title,
         slug,
         published_at,
+        status: input.publish ? "published" : "draft",
         excerpt: input.excerpt.trim() || null,
         cover_image_url: input.coverImageUrl,
         body,
@@ -119,6 +120,7 @@ export async function updateBlogPost(
       .update({
         title,
         slug,
+        status: input.publish ? "published" : "draft",
         excerpt: input.excerpt.trim() || null,
         body,
         seo_title: input.seoTitle.trim() || null,

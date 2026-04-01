@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import type { PortableTextBlock } from "@portabletext/types";
-import { PortableText } from "@portabletext/react";
+import ReactMarkdown from "react-markdown";
 import { fetchBlogPostBySlug } from "@/lib/supabase/queries";
 import type { Metadata } from "next";
 
@@ -22,10 +21,20 @@ type BlogPost = {
   publishedAt?: string;
   excerpt?: string;
   coverImage?: string | null;
-  body?: PortableTextBlock | PortableTextBlock[];
+  body?: unknown;
   seoTitle?: string;
   seoDescription?: string;
 };
+
+function bodyToMarkdown(body: unknown): string {
+  if (body == null) return "";
+  if (typeof body === "string") return body;
+  try {
+    return JSON.stringify(body);
+  } catch {
+    return String(body);
+  }
+}
 
 export async function generateMetadata({
   params,
@@ -50,6 +59,8 @@ export default async function BlogPostPage({
   const post = (await fetchBlogPostBySlug(slug)) as BlogPost | null;
 
   if (!post) notFound();
+
+  const markdown = bodyToMarkdown(post.body);
 
   return (
     <article className="pb-16 md:pb-24">
@@ -92,12 +103,12 @@ export default async function BlogPostPage({
         </div>
       ) : null}
 
-      {post.body ? (
+      {markdown.trim() ? (
         <div className="mx-auto max-w-3xl px-4 pt-10 md:pt-12">
           <div
             className="blog-body space-y-4 text-base leading-relaxed text-gray-600 [&_a]:text-brand-primary [&_a]:underline [&_a]:underline-offset-2 [&_blockquote]:border-l-2 [&_blockquote]:border-brand-primary/40 [&_blockquote]:pl-4 [&_blockquote]:italic [&_h2]:mt-10 [&_h2]:font-heading [&_h2]:text-2xl [&_h2]:font-medium [&_h2]:text-brand-text [&_h3]:mt-8 [&_h3]:font-heading [&_h3]:text-xl [&_h3]:font-medium [&_h3]:text-brand-text [&_li]:my-1 [&_ol]:my-4 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-4 [&_strong]:font-semibold [&_strong]:text-brand-text [&_ul]:my-4 [&_ul]:list-disc [&_ul]:pl-6"
           >
-            <PortableText value={post.body} />
+            <ReactMarkdown>{markdown}</ReactMarkdown>
           </div>
         </div>
       ) : null}
