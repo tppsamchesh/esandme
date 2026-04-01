@@ -109,26 +109,41 @@ export async function PATCH(req: Request) {
   }
 
   const title = typeof body.title === "string" ? body.title.trim() : "";
-  const slug = typeof body.slug === "string" ? body.slug.trim() : "";
-  if (!title || !slug) {
+  if (!title) {
     return NextResponse.json(
-      { data: null, error: "title and slug are required" },
+      { data: null, error: "title is required" },
       { status: 400 },
     );
   }
 
   const description =
-    typeof body.description === "string" ? body.description.trim() : null;
+    body.description === null || body.description === undefined
+      ? null
+      : typeof body.description === "string"
+        ? body.description.trim() || null
+        : null;
+
   const hero_image_url = normalizeHeroImageUrl(body.hero_image_url);
+
+  const updatePayload: {
+    title: string;
+    description: string | null;
+    hero_image_url: string | null;
+    slug?: string;
+  } = {
+    title,
+    description,
+    hero_image_url,
+  };
+
+  const slug = typeof body.slug === "string" ? body.slug.trim() : "";
+  if (slug) {
+    updatePayload.slug = slug;
+  }
 
   const { data, error } = await adminSupabase
     .from("collections")
-    .update({
-      title,
-      slug,
-      description: description || null,
-      hero_image_url,
-    })
+    .update(updatePayload)
     .eq("id", id)
     .select()
     .single();

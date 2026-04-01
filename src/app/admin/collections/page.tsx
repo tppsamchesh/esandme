@@ -146,7 +146,7 @@ function HeroImageField({
   );
 }
 
-function CollectionCard({
+function CollectionEditCard({
   collection: c,
   onRemoved,
   onUpdated,
@@ -158,14 +158,23 @@ function CollectionCard({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+
+  const [heroImageUrl, setHeroImageUrl] = useState(
+    () => c.hero_image_url ?? "",
+  );
   const [heroImageUploading, setHeroImageUploading] = useState(false);
-  const [heroUrl, setHeroUrl] = useState<string | null>(c.hero_image_url);
+  const [saving, setSaving] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const [title, setTitle] = useState(c.title);
+  const [description, setDescription] = useState(c.description ?? "");
 
   useEffect(() => {
-    setHeroUrl(c.hero_image_url);
-  }, [c.hero_image_url]);
+    setHeroImageUrl(c.hero_image_url ?? "");
+    setTitle(c.title);
+    setDescription(c.description ?? "");
+  }, [c.id, c.hero_image_url, c.title, c.description]);
 
   async function handleDelete() {
     setDeleteError(null);
@@ -194,22 +203,65 @@ function CollectionCard({
     }
   }
 
+  async function handleHeroFileChange(
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setHeroImageUploading(true);
+    setSuccessMessage("");
+    setErrorMessage("");
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("/api/admin/upload-image", {
+        method: "POST",
+        body: formData,
+        credentials: "same-origin",
+      });
+      const data = (await res.json().catch(() => null)) as {
+        url?: string;
+        error?: string;
+      } | null;
+
+      if (!res.ok) {
+        throw new Error(
+          data?.error ?? `Upload failed (${res.status})`,
+        );
+      }
+      if (!data?.url || typeof data.url !== "string") {
+        throw new Error("Invalid upload response");
+      }
+
+      setHeroImageUrl(data.url);
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error ? err.message : "Upload failed.",
+      );
+    } finally {
+      setHeroImageUploading(false);
+      e.target.value = "";
+    }
+  }
+
   async function handleSave(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setSaveError(null);
-    if (heroImageUploading) {
-      setSaveError("Wait for the hero image to finish uploading.");
+    if (heroImageUploading) return;
+
+    const titleTrim = title.trim();
+    if (!titleTrim) {
+      setErrorMessage("Title is required.");
+      setSuccessMessage("");
       return;
     }
-    const form = e.currentTarget;
-    const fd = new FormData(form);
-    const title = String(fd.get("title") ?? "").trim();
-    const description = String(fd.get("description") ?? "");
-    if (!title) {
-      setSaveError("Title is required.");
-      return;
-    }
+
     setSaving(true);
+    setSuccessMessage("");
+    setErrorMessage("");
+
     try {
       const res = await fetch(COLLECTIONS_API_PATH, {
         method: "PATCH",
@@ -217,53 +269,35 @@ function CollectionCard({
         credentials: "same-origin",
         body: JSON.stringify({
           id: c.id,
-          title,
-          slug: c.slug,
+          hero_image_url: heroImageUrl.trim() || null,
+          title: titleTrim,
           description: description.trim() || null,
-          hero_image_url: heroUrl,
         }),
       });
       const raw = await res.json().catch(() => null);
       if (raw === null || typeof raw !== "object") {
-        setSaveError("Invalid response from collections API.");
+        setErrorMessage("Invalid response from collections API.");
         return;
       }
       const json = raw as ApiRowJson;
       if (!res.ok || json.error) {
-        setSaveError(json.error ?? `Update failed (${res.status})`);
+        setErrorMessage(json.error ?? `Update failed (${res.status})`);
         return;
       }
+      setSuccessMessage("Saved successfully");
       if (json.data) onUpdated(json.data);
     } catch {
-      setSaveError("Network error while saving.");
+      setErrorMessage("Network error while saving.");
     } finally {
       setSaving(false);
     }
   }
 
-  const heroThumb = heroUrl;
   const slugText = c.slug ?? "";
+  const previewSrc = heroImageUrl.trim();
 
   return (
     <div className="flex flex-col overflow-hidden rounded-xl border border-brand-text/10 bg-white text-left shadow-sm transition-shadow hover:border-brand-primary/40 hover:shadow-md">
-      <div className="relative aspect-[16/10] w-full bg-brand-bg">
-        {heroThumb ? (
-          <Image
-            src={heroThumb}
-            alt=""
-            fill
-            className="object-cover"
-            sizes="(max-width: 640px) 100vw, 33vw"
-            unoptimized={
-              heroThumb.startsWith("http") && !heroThumb.includes("localhost")
-            }
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center text-sm text-brand-text/40">
-            No hero image
-          </div>
-        )}
-      </div>
       <form
         onSubmit={handleSave}
         className="flex flex-1 flex-col gap-3 p-4"
@@ -326,14 +360,52 @@ function CollectionCard({
           </div>
         ) : null}
 
+        <div className="relative aspect-[16/10] w-full overflow-hidden rounded-lg bg-brand-bg">
+          {previewSrc ? (
+            <Image
+              src={previewSrc}
+              alt=""
+              fill
+              className="object-cover"
+              sizes="(max-width: 640px) 100vw, 33vw"
+              unoptimized={
+                previewSrc.startsWith("http") &&
+                !previewSrc.includes("localhost")
+              }
+            />
+          ) : (
+            <div className="flex h-full min-h-[120px] items-center justify-center text-sm text-brand-text/40">
+              No hero image yet
+            </div>
+          )}
+        </div>
+
+        <label className="block">
+          <span className="text-xs font-medium uppercase tracking-wide text-brand-text/60">
+            Choose a new image to replace
+          </span>
+          <input
+            type="file"
+            accept="image/*"
+            disabled={heroImageUploading}
+            onChange={handleHeroFileChange}
+            className="mt-2 block w-full max-w-lg text-sm file:mr-3 file:rounded file:border-0 file:bg-[#8BA888] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white disabled:opacity-60"
+          />
+          {heroImageUploading ? (
+            <span className="mt-1 inline-block text-xs text-brand-text/60">
+              Uploading...
+            </span>
+          ) : null}
+        </label>
+
         <label className="block">
           <span className="text-xs font-medium uppercase tracking-wide text-brand-text/60">
             Title
           </span>
           <input
-            name="title"
             type="text"
-            defaultValue={c.title ?? ""}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
             required
             className="mt-1 w-full rounded-md border border-brand-text/20 bg-white px-3 py-2 text-sm text-brand-text outline-none ring-brand-primary focus:ring-2"
             autoComplete="off"
@@ -344,39 +416,31 @@ function CollectionCard({
             Description
           </span>
           <textarea
-            name="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
             rows={4}
-            defaultValue={c.description ?? ""}
             className="mt-1 w-full rounded-md border border-brand-text/20 bg-white px-3 py-2 text-sm text-brand-text outline-none ring-brand-primary focus:ring-2"
           />
         </label>
-        <div>
-          <span className="text-xs font-medium uppercase tracking-wide text-brand-text/60">
-            Hero image
-          </span>
-          <HeroImageField
-            initialUrl={heroUrl}
-            onUrlChange={setHeroUrl}
-            onUploadingChange={setHeroImageUploading}
-            inputId={`hero-${c.id}`}
-          />
-        </div>
-        {saveError ? (
-          <p className="text-sm text-red-800" role="alert">
-            {saveError}
-          </p>
-        ) : null}
+
         <button
           type="submit"
           disabled={saving || heroImageUploading}
           className="mt-1 rounded-md bg-brand-primary px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
         >
-          {heroImageUploading
-            ? "Uploading image…"
-            : saving
-              ? "Saving…"
-              : "Save changes"}
+          {saving ? "Saving…" : "Save changes"}
         </button>
+
+        {successMessage ? (
+          <p className="text-sm text-[#8BA888]" role="status">
+            {successMessage}
+          </p>
+        ) : null}
+        {errorMessage ? (
+          <p className="text-sm text-red-800" role="alert">
+            {errorMessage}
+          </p>
+        ) : null}
       </form>
     </div>
   );
@@ -646,7 +710,7 @@ function AdminCollectionsContent() {
       {!fetchErrorMessage && !loading && rows.length > 0 ? (
         <div className="mt-8 grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
           {rows.map((c) => (
-            <CollectionCard
+            <CollectionEditCard
               key={c.id}
               collection={c}
               onRemoved={(id) =>
