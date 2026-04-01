@@ -1,15 +1,19 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { BlogDraftQueue } from "./_components/BlogDraftQueue";
+import { fetchDraftBlogPosts } from "./_lib/fetch-drafts";
 
 export const metadata: Metadata = {
-  title: "AI Agents",
+  title: "Agents",
 };
 
-export default function AdminAgentsPage() {
+export default async function AdminAgentsPage() {
+  const drafts = await fetchDraftBlogPosts();
+
   return (
     <div className="p-6 md:p-8">
       <div>
-        <h1 className="font-heading text-3xl text-brand-text">AI Agents Hub</h1>
+        <h1 className="font-heading text-3xl text-brand-text">Agents</h1>
         <p className="mt-1 text-sm text-brand-text/70">
           Automate your content and operations with AI
         </p>
@@ -69,6 +73,16 @@ export default function AdminAgentsPage() {
             </button>
           </div>
         </article>
+      </div>
+
+      <div className="mt-12">
+        <h2 className="font-heading text-xl text-brand-text">
+          Draft posts for review
+        </h2>
+        <p className="mt-1 text-sm text-brand-text/70">
+          Approve to publish on the journal, or reject to mark as not used.
+        </p>
+        <BlogDraftQueue drafts={drafts} />
       </div>
     </div>
   );
