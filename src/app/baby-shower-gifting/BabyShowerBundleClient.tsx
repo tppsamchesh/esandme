@@ -76,7 +76,7 @@ export function BabyShowerBundleClient({
 
   return (
     <div
-      className={`min-h-screen bg-brand-bg pb-32 ${showBar ? "md:pb-36" : ""}`}
+      className={`min-h-screen bg-brand-bg ${showBar ? "pb-20" : ""}`}
     >
       <div className="mx-auto max-w-6xl px-4 py-12 md:py-16">
         <h1 className="font-heading text-3xl font-medium tracking-tight text-brand-text md:text-4xl">
@@ -164,33 +164,20 @@ export function BabyShowerBundleClient({
       </div>
 
       {showBar ? (
-        <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-brand-text/10 bg-white/95 px-4 py-4 shadow-[0_-4px_24px_rgba(0,0,0,0.08)] backdrop-blur-sm md:px-6">
-          <div className="mx-auto flex max-w-6xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="font-sans text-sm text-brand-text md:text-base">
-              <p className="font-medium">
-                {n} item{n === 1 ? "" : "s"} selected
-              </p>
-              <p className="mt-1 text-brand-text/80">
-                Original total:{" "}
-                <span className="tabular-nums text-brand-text">
-                  {formatGbp(totals.original)}
+        <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white py-3">
+          <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 font-sans sm:px-6">
+            <div className="min-w-0 flex-1 overflow-x-auto [-webkit-overflow-scrolling:touch]">
+              <p className="whitespace-nowrap text-sm text-brand-text tabular-nums">
+                {n} item{n === 1 ? "" : "s"} selected · {formatGbp(totals.finalTotal)} ·{" "}
+                <span className="text-[#8BA888]">
+                  Save {formatGbp(totals.discount)}
                 </span>
-              </p>
-              <p className="text-brand-text/80">
-                10% bundle discount:{" "}
-                <span className="tabular-nums text-brand-primary">
-                  -{formatGbp(totals.discount)}
-                </span>
-              </p>
-              <p className="mt-1 font-semibold text-brand-text">
-                Final total:{" "}
-                <span className="tabular-nums">{formatGbp(totals.finalTotal)}</span>
               </p>
             </div>
             <button
               type="button"
               onClick={handleAddBundle}
-              className="w-full shrink-0 cursor-pointer rounded-md bg-brand-primary px-6 py-3 text-sm font-medium text-white transition-opacity hover:opacity-90 sm:w-auto"
+              className="shrink-0 cursor-pointer rounded-md bg-brand-primary px-6 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
             >
               Add bundle to bag
             </button>
