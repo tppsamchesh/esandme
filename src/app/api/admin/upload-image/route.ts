@@ -12,6 +12,11 @@ export async function POST(req: Request) {
     );
   }
 
+  console.log(
+    "[IMAGE DEBUG] Upload route hit, filename:",
+    (formData.get("file") as File | null)?.name,
+  );
+
   const fileEntry = formData.get("file");
   if (!(fileEntry instanceof File)) {
     return NextResponse.json({ error: "Missing file field" }, { status: 400 });
@@ -23,12 +28,14 @@ export async function POST(req: Request) {
 
   const buffer = Buffer.from(await fileEntry.arrayBuffer());
 
-  const { error } = await adminSupabase.storage
+  const { data, error } = await adminSupabase.storage
     .from("product-images")
     .upload(filename, buffer, {
       contentType: fileEntry.type || "application/octet-stream",
       upsert: true,
     });
+
+  console.log("[IMAGE DEBUG] Supabase storage result:", data, error);
 
   if (error) {
     return NextResponse.json(

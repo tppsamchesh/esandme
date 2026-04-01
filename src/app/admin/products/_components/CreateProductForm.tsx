@@ -106,6 +106,10 @@ export function CreateProductForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    console.log(
+      "[IMAGE DEBUG] handleSubmit fired, imageFiles.length:",
+      imageFiles.length,
+    );
     setError(null);
     setSuccess(null);
 
@@ -160,13 +164,19 @@ export function CreateProductForm({
     }
     try {
       for (const file of imageFiles) {
-        console.log("Uploading image:", file.name, file.size, file.type);
+        console.log(
+          "[IMAGE DEBUG] About to upload:",
+          file.name,
+          "size:",
+          file.size,
+        );
         const formData = new FormData();
         formData.append("file", file);
         const res = await fetch("/api/admin/upload-image", {
           method: "POST",
           body: formData,
         });
+        console.log("[IMAGE DEBUG] Upload response status:", res.status);
         const data = (await res.json().catch(() => null)) as {
           url?: string;
           error?: string;
@@ -191,6 +201,9 @@ export function CreateProductForm({
         setError("Image upload failed — please try again");
         return;
       }
+    } catch (err) {
+      console.error("[IMAGE DEBUG] Upload loop error:", err);
+      throw err;
     } finally {
       setUploadingImages(false);
     }
