@@ -180,17 +180,14 @@ export async function createProduct(
       if (vErr) throw vErr;
     }
 
-    console.log("inserting imageUrls:", imageUrls);
-
-    let sort = 0;
-    for (const url of imageUrls) {
-      const { error: imgErr } = await adminSupabase
-        .from("product_images")
-        .insert({
+    if (imageUrls.length > 0) {
+      const { error: imgErr } = await adminSupabase.from("product_images").insert(
+        imageUrls.map((url, index) => ({
           product_id: productId,
           url: url.trim(),
-          position: sort++,
-        });
+          position: index,
+        })),
+      );
       if (imgErr) throw imgErr;
     }
 

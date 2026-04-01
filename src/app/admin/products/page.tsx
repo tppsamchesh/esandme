@@ -76,9 +76,9 @@ async function fetchProductsForAdminPage(): Promise<ProductAdminRow[]> {
       supabase.from("product_variants").select("*").in("product_id", pids),
       supabase
         .from("product_images")
-        .select("id, product_id, url, sort_order")
+        .select("id, product_id, url, position")
         .in("product_id", pids)
-        .order("sort_order", { ascending: true }),
+        .order("position", { ascending: true }),
     ]);
 
   const colMap = new Map(
@@ -118,14 +118,14 @@ async function fetchProductsForAdminPage(): Promise<ProductAdminRow[]> {
 
   const iByPid = new Map<
     string,
-    Array<{ id: string; url: string; sort_order: number | null }>
+    Array<{ id: string; url: string; position: number | null }>
   >();
   for (const im of imgs ?? []) {
     const row = im as {
       id: string;
       product_id: string;
       url: string;
-      sort_order: number | null;
+      position: number | null;
     };
     const list = iByPid.get(row.product_id) ?? [];
     list.push(row);
@@ -136,7 +136,7 @@ async function fetchProductsForAdminPage(): Promise<ProductAdminRow[]> {
     const col = p.collection_id ? colMap.get(p.collection_id) : null;
     const vrows = vByPid.get(p.id) ?? [];
     const irows = [...(iByPid.get(p.id) ?? [])].sort(
-      (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
+      (a, b) => (a.position ?? 0) - (b.position ?? 0),
     );
     const galleryUrls = irows.map((r) => r.url);
     const thumbUrl = galleryUrls[0] ?? null;
@@ -460,15 +460,15 @@ export async function saveProductVariantsAndImages(formData: FormData) {
 
     const { data: sortRow } = await adminSupabase
       .from("product_images")
-      .select("sort_order")
+      .select("position")
       .eq("product_id", id)
-      .order("sort_order", { ascending: false })
+      .order("position", { ascending: false })
       .limit(1)
       .maybeSingle();
     let sortBase =
-      typeof (sortRow as { sort_order: number | null } | null)?.sort_order ===
+      typeof (sortRow as { position: number | null } | null)?.position ===
       "number"
-        ? (sortRow as { sort_order: number }).sort_order
+        ? (sortRow as { position: number }).position
         : -1;
 
     const newFiles = formData.getAll("newImages");
@@ -479,7 +479,7 @@ export async function saveProductVariantsAndImages(formData: FormData) {
       await adminSupabase.from("product_images").insert({
         product_id: id,
         url,
-        sort_order: sortBase,
+        position: sortBase,
       });
     }
   } catch {
