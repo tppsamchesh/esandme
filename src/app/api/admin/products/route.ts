@@ -115,6 +115,20 @@ export async function POST(req: Request) {
     variantRows.push(vr);
   }
 
+  if (variantRows.length === 0) {
+    const standaloneStock =
+      typeof b.standaloneStock === "number" && Number.isFinite(b.standaloneStock)
+        ? Math.max(0, Math.floor(b.standaloneStock))
+        : 0;
+    variantRows.push({
+      title: "Default",
+      size: "",
+      colour: "",
+      sku: "",
+      stock: standaloneStock,
+    });
+  }
+
   console.log("[admin/products POST] inserting product row…");
 
   const insertRes = await adminSupabase
@@ -257,6 +271,10 @@ export async function PATCH(req: Request) {
         (id): id is string => typeof id === "string" && id.trim().length > 0,
       )
     : [];
+  const imageOrderRaw = Array.isArray(b.imageOrder) ? b.imageOrder : [];
+  const imageOrder = imageOrderRaw.filter(
+    (id): id is string => typeof id === "string" && id.trim().length > 0,
+  );
 
   if (!productId || !title || !slug || !collectionId) {
     return NextResponse.json(
@@ -324,6 +342,23 @@ export async function PATCH(req: Request) {
       variantRows.push(vr);
     }
 
+    if (variantRows.length === 0) {
+      const standaloneStock =
+        typeof b.standaloneStock === "number" &&
+        Number.isFinite(b.standaloneStock)
+          ? Math.max(0, Math.floor(b.standaloneStock))
+          : 0;
+      variantRows.push({
+        product_id: productId,
+        title: "Default",
+        size: "",
+        colour: "",
+        sku: "",
+        stock: standaloneStock,
+        price: null,
+      });
+    }
+
     if (variantRows.length > 0) {
       const { error: vInsErr } = await adminSupabase
         .from("product_variants")
@@ -367,6 +402,26 @@ export async function PATCH(req: Request) {
         .from("product_images")
         .insert(imgRows);
       if (imgInsErr) throw imgInsErr;
+    }
+
+    if (imageOrder.length > 0) {
+      const { data: imgRows, error: listImgErr } = await adminSupabase
+        .from("product_images")
+        .select("id")
+        .eq("product_id", productId);
+      if (listImgErr) throw listImgErr;
+      const valid = new Set(
+        (imgRows ?? []).map((r: { id: string }) => r.id),
+      );
+      const ordered = imageOrder.filter((id) => valid.has(id));
+      for (let i = 0; i < ordered.length; i++) {
+        const { error: posErr } = await adminSupabase
+          .from("product_images")
+          .update({ position: i })
+          .eq("id", ordered[i])
+          .eq("product_id", productId);
+        if (posErr) throw posErr;
+      }
     }
 
     revalidatePath("/admin/products");

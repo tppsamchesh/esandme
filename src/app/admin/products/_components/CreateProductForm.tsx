@@ -1,6 +1,5 @@
 "use client";
 
-import { createProduct } from "@/app/admin/products/actions";
 import { getSupabase } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, useTransition } from "react";
@@ -76,6 +75,7 @@ export function CreateProductForm(_props: {
   const [collectionId, setCollectionId] = useState("");
   const [published, setPublished] = useState(true);
   const [variants, setVariants] = useState<VariantDraft[]>([]);
+  const [standaloneStock, setStandaloneStock] = useState("0");
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [imageUploading, setImageUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -120,6 +120,7 @@ export function CreateProductForm(_props: {
     setCollectionId(collections[0]?._id ?? "");
     setPublished(true);
     setVariants([]);
+    setStandaloneStock("0");
     setImageUrls([]);
     setImageUploading(false);
     setError(null);
@@ -141,6 +142,15 @@ export function CreateProductForm(_props: {
 
   function removeVariant(i: number) {
     setVariants((prev) => prev.filter((_, j) => j !== i));
+  }
+
+  function setPrimaryImage(index: number) {
+    setImageUrls((prev) => {
+      if (index < 0 || index >= prev.length) return prev;
+      const next = [...prev];
+      const [picked] = next.splice(index, 1);
+      return picked !== undefined ? [picked, ...next] : prev;
+    });
   }
 
   async function handleImageInputChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -231,8 +241,7 @@ export function CreateProductForm(_props: {
     });
 
     startTransition(async () => {
-      console.log("imageUrls at submit:", imageUrls);
-      const res = await createProduct({
+      const body: Record<string, unknown> = {
         title: title.trim(),
         slug: slugValue,
         description,
@@ -241,9 +250,27 @@ export function CreateProductForm(_props: {
         published,
         variants: variantPayload,
         imageUrls: [...imageUrls],
+      };
+      if (variantPayload.length === 0) {
+        body.standaloneStock = Math.max(
+          0,
+          Math.floor(parseInt(standaloneStock, 10) || 0),
+        );
+      }
+
+      const res = await fetch("/api/admin/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
       });
+      const json = (await res.json().catch(() => null)) as {
+        error?: string;
+        data?: unknown;
+      } | null;
       if (!res.ok) {
-        setError(formatCreateProductError(res.error));
+        setError(
+          formatCreateProductError(json?.error ?? `Request failed (${res.status})`),
+        );
         return;
       }
       setSuccess(
@@ -274,7 +301,7 @@ export function CreateProductForm(_props: {
             setError(null);
             setSuccess(null);
           }}
-          className="rounded-md bg-brand-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+          className="cursor-pointer rounded-md bg-brand-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90"
         >
           {open ? "Hide form" : "Create new product"}
         </button>
@@ -353,7 +380,7 @@ export function CreateProductForm(_props: {
               <select
                 value={collectionId}
                 onChange={(e) => setCollectionId(e.target.value)}
-                className="mt-1 w-full rounded-md border border-brand-text/20 bg-white px-3 py-2 text-sm outline-none ring-brand-primary focus:ring-2"
+                className="mt-1 w-full cursor-pointer rounded-md border border-brand-text/20 bg-white px-3 py-2 text-sm outline-none ring-brand-primary focus:ring-2"
                 required
                 disabled={collections.length === 0}
               >
@@ -381,7 +408,7 @@ export function CreateProductForm(_props: {
                 multiple
                 disabled={imageUploading}
                 onChange={handleImageInputChange}
-                className="block min-w-0 flex-1 text-sm text-brand-text/80 file:mr-3 file:rounded-md file:border-0 file:bg-brand-bg file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-text disabled:opacity-50"
+                className="block min-w-0 flex-1 cursor-pointer text-sm text-brand-text/80 file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-brand-bg file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-text disabled:opacity-50"
               />
               {imageUploading ? (
                 <span className="text-sm text-brand-text/70" aria-live="polite">
@@ -390,10 +417,47 @@ export function CreateProductForm(_props: {
               ) : null}
             </div>
             {imageUrls.length > 0 ? (
-              <p className="mt-2 text-xs text-brand-text/60">
-                {imageUrls.length} image{imageUrls.length === 1 ? "" : "s"}{" "}
-                uploaded
-              </p>
+              <div className="mt-3 flex flex-wrap gap-4">
+                {imageUrls.map((url, idx) => (
+                  <div
+                    key={`${url}-${idx}`}
+                    className="flex flex-col items-center gap-1.5"
+                  >
+                    <div
+                      className={`relative h-20 w-20 overflow-hidden rounded-md ${
+                        idx === 0
+                          ? "border-2 border-brand-primary ring-2 ring-brand-primary/35"
+                          : "border border-brand-text/15"
+                      }`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={url}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                      {idx === 0 ? (
+                        <span className="absolute left-0.5 top-0.5 rounded bg-brand-primary px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white">
+                          Primary
+                        </span>
+                      ) : null}
+                    </div>
+                    {idx > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => setPrimaryImage(idx)}
+                        className="cursor-pointer text-xs font-medium text-brand-primary underline underline-offset-2 hover:opacity-90"
+                      >
+                        Set as primary
+                      </button>
+                    ) : (
+                      <span className="text-[10px] text-brand-text/55">
+                        Shop thumbnail
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
             ) : null}
           </div>
 
@@ -403,15 +467,31 @@ export function CreateProductForm(_props: {
               <button
                 type="button"
                 onClick={addVariant}
-                className="rounded-md border border-brand-text/20 bg-brand-bg px-3 py-1.5 text-sm text-brand-text hover:bg-brand-text/5"
+                className="cursor-pointer rounded-md border border-brand-text/20 bg-brand-bg px-3 py-1.5 text-sm text-brand-text hover:bg-brand-text/5"
               >
                 Add variant
               </button>
             </div>
             {variants.length === 0 ? (
-              <p className="mt-2 text-sm text-brand-text/70">
-                No variants yet. Use &quot;Add variant&quot; to add SKU rows.
-              </p>
+              <div className="mt-3 space-y-3">
+                <p className="text-sm text-brand-text/70">
+                  No variants yet. Add SKU rows above, or set stock here for a
+                  single default variant.
+                </p>
+                <label className="block max-w-xs">
+                  <span className="text-xs font-medium uppercase tracking-wide text-brand-text/60">
+                    Stock
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={standaloneStock}
+                    onChange={(e) => setStandaloneStock(e.target.value)}
+                    className="mt-1 w-full rounded-md border border-brand-text/20 bg-white px-3 py-2 text-sm outline-none ring-brand-primary focus:ring-2"
+                  />
+                </label>
+              </div>
             ) : (
               <ul className="mt-4 space-y-4">
                 {variants.map((v, i) => (
@@ -423,7 +503,7 @@ export function CreateProductForm(_props: {
                       <button
                         type="button"
                         onClick={() => removeVariant(i)}
-                        className="text-xs text-red-700 hover:underline"
+                        className="cursor-pointer text-xs text-red-700 hover:underline"
                       >
                         Remove
                       </button>
@@ -510,7 +590,7 @@ export function CreateProductForm(_props: {
               type="checkbox"
               checked={published}
               onChange={(e) => setPublished(e.target.checked)}
-              className="h-4 w-4 rounded border-brand-text/30 text-brand-primary focus:ring-brand-primary"
+              className="h-4 w-4 cursor-pointer rounded border-brand-text/30 text-brand-primary focus:ring-brand-primary"
             />
             <span className="text-sm text-brand-text">Published</span>
           </label>
@@ -534,7 +614,7 @@ export function CreateProductForm(_props: {
                 imageUploading ||
                 collections.length === 0
               }
-              className="rounded-md bg-brand-primary px-4 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+              className="cursor-pointer rounded-md bg-brand-primary px-4 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {imageUploading
                 ? "Uploading..."

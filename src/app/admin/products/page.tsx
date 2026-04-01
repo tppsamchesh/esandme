@@ -519,7 +519,7 @@ export default async function AdminProductsPage({
                 id="collection-filter"
                 name="collection"
                 defaultValue={collectionFilter}
-                className="w-full rounded-md border border-brand-text/20 bg-white px-3 py-2 text-sm outline-none ring-brand-primary focus:ring-2"
+                className="w-full cursor-pointer rounded-md border border-brand-text/20 bg-white px-3 py-2 text-sm outline-none ring-brand-primary focus:ring-2"
               >
                 {COLLECTION_FILTERS.map((c) => (
                   <option key={c.value} value={c.value}>
@@ -555,7 +555,7 @@ export default async function AdminProductsPage({
                   >
                     <Link
                       href={`/products/${p.slug?.current ?? ""}`}
-                      className="relative block aspect-[4/3] w-full bg-brand-bg"
+                      className="relative block aspect-[4/3] w-full cursor-pointer bg-brand-bg"
                     >
                       {p.thumbUrl ? (
                         <Image
@@ -607,7 +607,7 @@ export default async function AdminProductsPage({
                                 />
                                 <button
                                   type="submit"
-                                  className="rounded-md bg-red-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-800"
+                                  className="cursor-pointer rounded-md bg-red-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-800"
                                 >
                                   Confirm
                                 </button>
@@ -615,7 +615,7 @@ export default async function AdminProductsPage({
                               <button
                                 type="button"
                                 data-close-details
-                                className="rounded-md border border-brand-text/20 bg-white px-3 py-1.5 text-sm text-brand-text hover:bg-brand-bg"
+                                className="cursor-pointer rounded-md border border-brand-text/20 bg-white px-3 py-1.5 text-sm text-brand-text hover:bg-brand-bg"
                               >
                                 Cancel
                               </button>
@@ -683,7 +683,7 @@ export default async function AdminProductsPage({
                         </p>
                         <button
                           type="submit"
-                          className="rounded-md bg-brand-primary px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
+                          className="cursor-pointer rounded-md bg-brand-primary px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
                         >
                           Save sale price
                         </button>
@@ -696,7 +696,7 @@ export default async function AdminProductsPage({
                               collection: sp.collection,
                               editPanel: p._id,
                             })}
-                            className="text-sm font-medium text-brand-primary underline underline-offset-2 hover:opacity-90"
+                            className="cursor-pointer text-sm font-medium text-brand-primary underline underline-offset-2 hover:opacity-90"
                           >
                             Edit product
                           </Link>
@@ -759,7 +759,7 @@ export default async function AdminProductsPage({
                               Collection
                               <select
                                 data-ep-field="collectionId"
-                                className="mt-0.5 w-full rounded-md border border-brand-text/20 bg-white px-2 py-1.5 text-sm text-brand-text outline-none ring-brand-primary focus:ring-2"
+                                className="mt-0.5 w-full cursor-pointer rounded-md border border-brand-text/20 bg-white px-2 py-1.5 text-sm text-brand-text outline-none ring-brand-primary focus:ring-2"
                                 defaultValue={p.collection?._id ?? ""}
                                 required
                               >
@@ -780,7 +780,7 @@ export default async function AdminProductsPage({
                               data-ep-field="published"
                               type="checkbox"
                               defaultChecked={!isHidden}
-                              className="h-4 w-4 rounded border-brand-text/30 text-brand-primary focus:ring-brand-primary"
+                              className="h-4 w-4 cursor-pointer rounded border-brand-text/30 text-brand-primary focus:ring-brand-primary"
                             />
                             Published (visible in shop)
                           </label>
@@ -976,11 +976,30 @@ export default async function AdminProductsPage({
                               </label>
                             </div>
                           </div>
+                          {(p.variants ?? []).length === 0 ? (
+                            <div
+                              data-ep-standalone-stock-wrap=""
+                              className="rounded-lg border border-brand-text/10 bg-white p-3"
+                            >
+                              <label className="block text-[11px] text-brand-text/70">
+                                Stock (no variants — saved as a default row)
+                                <input
+                                  data-ep-field="standaloneStock"
+                                  type="number"
+                                  min={0}
+                                  step={1}
+                                  defaultValue="0"
+                                  className="mt-0.5 w-full max-w-[12rem] rounded border border-brand-text/20 px-2 py-1.5 text-sm text-brand-text"
+                                  autoComplete="off"
+                                />
+                              </label>
+                            </div>
+                          ) : null}
                           <button
                             type="button"
                             data-add-variant=""
                             data-template-wrap={`variant-template-wrap-${p._id}`}
-                            className="text-sm font-medium text-brand-primary underline underline-offset-2 hover:opacity-90"
+                            className="cursor-pointer text-sm font-medium text-brand-primary underline underline-offset-2 hover:opacity-90"
                           >
                             + Add variant
                           </button>
@@ -990,42 +1009,86 @@ export default async function AdminProductsPage({
                             </p>
                             <p className="mt-1 text-[11px] text-brand-text/50">
                               Mark an image for removal, or choose new files to
-                              upload immediately.
+                              upload immediately. The first image is the shop
+                              thumbnail — use Set as primary to change it.
                             </p>
-                            <div className="mt-2 flex flex-wrap gap-3">
+                            <div
+                              className="mt-2 flex flex-wrap gap-4"
+                              data-ep-images-row=""
+                            >
                               {(p.images ?? []).map((img, imgIdx) => {
                                 const row = img as { id?: string; url?: string };
                                 const imgId = row.id;
                                 const thumb = row.url;
                                 if (!imgId || !thumb) return null;
+                                const isPrimary = imgIdx === 0;
                                 return (
                                   <div
                                     key={imgId}
-                                    className="relative"
+                                    data-img-thumb-wrap=""
+                                    data-img-id={imgId}
+                                    className="relative flex flex-col items-center gap-1.5 rounded-md"
                                   >
-                                    <input
-                                      type="checkbox"
-                                      data-img-remove=""
-                                      data-img-id={imgId}
-                                      id={`rm-img-${p._id}-${imgIdx}-${imgId}`}
-                                      className="peer sr-only"
-                                    />
-                                    <div className="peer-checked:opacity-40 peer-checked:grayscale">
-                                      <Image
-                                        src={thumb}
-                                        alt=""
-                                        width={96}
-                                        height={96}
-                                        className="h-20 w-20 rounded-md border border-brand-text/15 object-cover"
+                                    <div className="relative">
+                                      <input
+                                        type="checkbox"
+                                        data-img-remove=""
+                                        data-img-id={imgId}
+                                        id={`rm-img-${p._id}-${imgIdx}-${imgId}`}
+                                        className="peer sr-only"
                                       />
+                                      <div
+                                        data-img-ring-wrap=""
+                                        className={`peer-checked:opacity-40 peer-checked:grayscale ${isPrimary ? "ring-2 ring-brand-primary" : ""} rounded-md`}
+                                      >
+                                        <Image
+                                          src={thumb}
+                                          alt=""
+                                          width={96}
+                                          height={96}
+                                          className="h-20 w-20 rounded-md border border-brand-text/15 object-cover"
+                                        />
+                                      </div>
+                                      <span
+                                        data-img-primary-badge=""
+                                        className={
+                                          isPrimary
+                                            ? "absolute left-0.5 top-0.5 rounded bg-brand-primary px-1 py-0.5 text-[9px] font-semibold uppercase text-white"
+                                            : "absolute left-0.5 top-0.5 hidden rounded bg-brand-primary px-1 py-0.5 text-[9px] font-semibold uppercase text-white"
+                                        }
+                                      >
+                                        Primary
+                                      </span>
+                                      <label
+                                        htmlFor={`rm-img-${p._id}-${imgIdx}-${imgId}`}
+                                        className="absolute -right-1 -top-1 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-brand-text text-xs font-bold text-white shadow hover:bg-red-800"
+                                        title="Remove image"
+                                      >
+                                        ×
+                                      </label>
                                     </div>
-                                    <label
-                                      htmlFor={`rm-img-${p._id}-${imgIdx}-${imgId}`}
-                                      className="absolute -right-1 -top-1 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-brand-text text-xs font-bold text-white shadow hover:bg-red-800"
-                                      title="Remove image"
-                                    >
-                                      ×
-                                    </label>
+                                      <button
+                                        type="button"
+                                        data-set-primary-img=""
+                                        data-img-id={imgId}
+                                        className={
+                                          isPrimary
+                                            ? "hidden cursor-pointer text-xs font-medium text-brand-primary underline underline-offset-2"
+                                            : "cursor-pointer text-xs font-medium text-brand-primary underline underline-offset-2 hover:opacity-90"
+                                        }
+                                      >
+                                        Set as primary
+                                      </button>
+                                      <span
+                                        data-img-primary-sub=""
+                                        className={
+                                          isPrimary
+                                            ? "text-[10px] text-brand-text/50"
+                                            : "hidden text-[10px] text-brand-text/50"
+                                        }
+                                      >
+                                        Thumbnail
+                                      </span>
                                   </div>
                                 );
                               })}
@@ -1034,14 +1097,14 @@ export default async function AdminProductsPage({
                                 className="contents"
                               />
                             </div>
-                            <label className="mt-3 block text-[11px] text-brand-text/70">
+                            <label className="mt-3 block cursor-pointer text-[11px] text-brand-text/70">
                               Add images
                               <input
                                 data-edit-images-input=""
                                 type="file"
                                 accept="image/*"
                                 multiple
-                                className="mt-1 block w-full text-sm text-brand-text/80 file:mr-3 file:rounded-md file:border-0 file:bg-brand-bg file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-text"
+                                className="mt-1 block w-full cursor-pointer text-sm text-brand-text/80 file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-brand-bg file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-text"
                               />
                             </label>
                           </div>
@@ -1049,13 +1112,13 @@ export default async function AdminProductsPage({
                             <button
                               type="submit"
                               data-ep-submit=""
-                              className="rounded-md bg-brand-text px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+                              className="cursor-pointer rounded-md bg-brand-text px-4 py-2 text-sm font-medium text-white hover:opacity-90"
                             >
                               Save product
                             </button>
                             <Link
                               href={saveVariantsRedirectTo}
-                              className="rounded-md border border-brand-text/25 bg-white px-4 py-2 text-sm font-medium text-brand-text hover:bg-brand-bg"
+                              className="cursor-pointer rounded-md border border-brand-text/25 bg-white px-4 py-2 text-sm font-medium text-brand-text hover:bg-brand-bg"
                             >
                               Cancel
                             </Link>
@@ -1077,7 +1140,7 @@ export default async function AdminProductsPage({
                           />
                           <button
                             type="submit"
-                            className={`inline-flex rounded-full px-3 py-1 text-xs font-medium transition-opacity hover:opacity-90 ${
+                            className={`inline-flex cursor-pointer rounded-full px-3 py-1 text-xs font-medium transition-opacity hover:opacity-90 ${
                               isHidden
                                 ? "bg-brand-text/10 text-brand-text/70"
                                 : "bg-emerald-100 text-emerald-900"
@@ -1161,6 +1224,42 @@ else inp.value='';
 });
 var list=btn.closest('form')&&btn.closest('form').querySelector('[data-ep-variant-list]');
 if(list)list.appendChild(row);
+var standalone=btn.closest('form')&&btn.closest('form').querySelector('[data-ep-standalone-stock-wrap]');
+if(standalone)standalone.style.display='none';
+},true);
+
+function epRefreshImagePrimaryUi(row){
+if(!row)return;
+var wraps=row.querySelectorAll('[data-img-thumb-wrap]');
+wraps.forEach(function(w,idx){
+var ring=w.querySelector('[data-img-ring-wrap]');
+var badge=w.querySelector('[data-img-primary-badge]');
+var b=w.querySelector('[data-set-primary-img]');
+var sub=w.querySelector('[data-img-primary-sub]');
+if(idx===0){
+if(ring){ring.classList.add('ring-2','ring-brand-primary');}
+if(badge)badge.classList.remove('hidden');
+if(b)b.classList.add('hidden');
+if(sub)sub.classList.remove('hidden');
+}else{
+if(ring){ring.classList.remove('ring-2','ring-brand-primary');}
+if(badge)badge.classList.add('hidden');
+if(b){b.classList.remove('hidden');}
+if(sub)sub.classList.add('hidden');
+}
+});
+}
+
+document.addEventListener('click',function(e){
+var pr=e.target&&e.target.closest&&e.target.closest('[data-set-primary-img]');
+if(!pr||pr.classList.contains('hidden'))return;
+e.preventDefault();
+var wrap=pr.closest('[data-img-thumb-wrap]');
+var row=pr.closest('[data-ep-images-row]');
+if(!wrap||!row)return;
+var first=row.querySelector('[data-img-thumb-wrap]');
+if(first&&wrap!==first)row.insertBefore(wrap,first);
+epRefreshImagePrimaryUi(row);
 },true);
 
 document.addEventListener('change',function(e){
@@ -1223,6 +1322,16 @@ var stock=Math.max(0,parseInt(stockRaw,10)||0);
 var pp=parseGbp((row.querySelector('[data-v-field="priceGbp"]')||{}).value);
 variants.push({title:titleV,size:sizeV,colour:colourV,sku:skuV,stock:stock,pricePence:pp});
 });
+var imageOrder=[];
+var imgRow=form.querySelector('[data-ep-images-row]');
+if(imgRow){
+imgRow.querySelectorAll('[data-img-thumb-wrap]').forEach(function(w){
+var rm=w.querySelector('[data-img-remove]');
+if(rm&&rm.checked)return;
+var id=w.getAttribute('data-img-id');
+if(id)imageOrder.push(id);
+});
+}
 var imageIdsToRemove=[];
 form.querySelectorAll('[data-img-remove]').forEach(function(cb){
 if(cb.checked&&cb.getAttribute('data-img-id'))imageIdsToRemove.push(cb.getAttribute('data-img-id'));
@@ -1230,10 +1339,7 @@ if(cb.checked&&cb.getAttribute('data-img-id'))imageIdsToRemove.push(cb.getAttrib
 var imageUrlsToAdd=form._pendingUrls||[];
 var sub=form.querySelector('[data-ep-submit]');
 if(sub)sub.disabled=true;
-fetch('/api/admin/products',{
-method:'PATCH',
-headers:{'Content-Type':'application/json'},
-body:JSON.stringify({
+var patchBody={
 productId:pid,
 title:title,
 slug:slug,
@@ -1244,7 +1350,16 @@ pricePounds:pricePounds,
 variants:variants,
 imageUrlsToAdd:imageUrlsToAdd,
 imageIdsToRemove:imageIdsToRemove
-})
+};
+if(imageOrder.length>0)patchBody.imageOrder=imageOrder;
+if(variants.length===0){
+var ss=form.querySelector('[data-ep-field="standaloneStock"]');
+patchBody.standaloneStock=Math.max(0,parseInt((ss&&ss.value)||'0',10)||0);
+}
+fetch('/api/admin/products',{
+method:'PATCH',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify(patchBody)
 })
 .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j,r:r};});})
 .then(function(x){
