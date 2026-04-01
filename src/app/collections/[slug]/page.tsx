@@ -77,19 +77,17 @@ export default async function CollectionPage({
             <img
               src={col.hero_image_url}
               alt=""
-              className="h-80 w-full object-cover md:h-96"
+              className="h-72 w-full object-cover"
             />
-            <div
-              className="absolute inset-0 bg-brand-text/40"
-              aria-hidden
-            />
-            <div className="absolute inset-0 flex items-end px-4 pb-8 pt-16 md:px-8 md:pb-12">
-              <div className="mx-auto w-full max-w-7xl">
-                <h1 className="font-heading text-4xl font-medium tracking-tight text-white md:text-5xl lg:text-6xl">
-                  {col.title}
-                </h1>
-              </div>
-            </div>
+            <div className="absolute inset-0 bg-black/20" aria-hidden />
+            <h1
+              className="absolute bottom-8 left-8 max-w-[calc(100%-4rem)] font-heading text-4xl font-medium tracking-tight text-white md:text-5xl lg:text-6xl"
+              style={{
+                textShadow: "0 1px 4px rgba(0,0,0,0.3)",
+              }}
+            >
+              {col.title}
+            </h1>
           </div>
         ) : (
           <div className="bg-brand-primary/15 px-4 py-12 md:px-8 md:py-16">
