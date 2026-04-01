@@ -9,7 +9,7 @@ const navLinks = [
   { href: "/collections/changing-bags", label: "Changing Bags" },
   { href: "/collections/snuggy-bunny", label: "Snuggy Bunny" },
   { href: "/our-story", label: "Our Story" },
-  { href: "/blog", label: "Blog" },
+  { href: "/baby-shower-gifting", label: "Baby Shower" },
 ] as const;
 
 function CartButton() {
@@ -49,21 +49,21 @@ function CartButton() {
 export function Header() {
   return (
     <header className="sticky top-0 z-50 border-b border-black/10 bg-white">
-      <div className="mx-auto max-w-7xl px-4 py-3 md:grid md:grid-cols-[1fr_auto_1fr] md:items-center md:gap-4 md:py-4">
-        <div className="flex items-center justify-between md:contents">
+      <div className="mx-auto max-w-7xl px-4 py-3 md:py-4">
+        <div className="relative flex items-center justify-center py-0.5">
           <Link
             href="/"
-            className="font-heading text-2xl font-medium tracking-tight text-brand-text md:justify-self-start"
+            className="font-heading text-2xl font-medium tracking-tight text-brand-text"
           >
             Es & Me
           </Link>
-          <div className="md:col-start-3 md:justify-self-end">
+          <div className="absolute right-0 top-1/2 -translate-y-1/2">
             <CartButton />
           </div>
         </div>
 
         <nav
-          className="mt-3 flex gap-6 overflow-x-auto pb-1 text-sm text-brand-text/90 [-ms-overflow-style:none] [scrollbar-width:none] md:col-start-2 md:mt-0 md:justify-center md:overflow-visible md:pb-0 [&::-webkit-scrollbar]:hidden"
+          className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-2 overflow-x-auto pb-1 text-center text-sm text-brand-text/90 [-ms-overflow-style:none] [scrollbar-width:none] md:mt-4 md:gap-x-6 md:overflow-visible md:pb-0 [&::-webkit-scrollbar]:hidden"
           aria-label="Main"
         >
           {navLinks.map(({ href, label }) => (
