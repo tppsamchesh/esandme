@@ -66,7 +66,12 @@ export default async function CollectionPage({
       </header>
 
       <div className="mt-10 grid grid-cols-2 gap-6 md:grid-cols-3">
-        {collection.products?.map((product: any) => (
+        {collection.products?.map((product: any) => {
+          const thumb =
+            typeof product.thumbUrl === "string" && product.thumbUrl
+              ? product.thumbUrl
+              : product.images?.[0];
+          return (
           <Link
             key={product._id}
             href={`/products/${product.slug.current}`}
@@ -74,9 +79,9 @@ export default async function CollectionPage({
           >
             <article className="rounded-lg transition-shadow duration-300 hover:shadow-md">
               <div className="relative aspect-square overflow-hidden rounded-lg bg-[#E8E0D5]">
-                {product.images?.[0] ? (
+                {thumb ? (
                   <img
-                    src={product.images[0]}
+                    src={thumb}
                     alt={product.title}
                     className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                   />
@@ -110,7 +115,8 @@ export default async function CollectionPage({
               </div>
             </article>
           </Link>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

@@ -89,6 +89,12 @@ function mapProductImages(rows: ImageRow[] | undefined): string[] {
   return sorted.map((r) => r.url).filter(Boolean);
 }
 
+/** First image URL for a product (lowest `position`). */
+function firstImageUrl(rows: ImageRow[] | undefined): string | null {
+  const urls = mapProductImages(rows);
+  return urls[0] ?? null;
+}
+
 /** Former `allCollectionsQuery` — list all collections. */
 export async function fetchAllCollectionsPublic(): Promise<
   Array<{
@@ -267,21 +273,35 @@ export async function fetchProductBySlug(slug: string) {
 /** Former `collectionBySlugQuery` result shape. */
 export async function fetchCollectionBySlug(slug: string) {
   const supabase = getSupabase();
-  const { data: col, error } = await supabase
+  const slugClean = slug.trim();
+  if (!slugClean) return null;
+
+  const collectionSelect =
+    "id, slug, title, description, hero_image_url, seo_title, seo_description";
+
+  let { data: col, error } = await supabase
     .from("collections")
-    .select(
-      "id, slug, title, description, hero_image_url, seo_title, seo_description",
-    )
-    .eq("slug", slug.trim())
+    .select(collectionSelect)
+    .eq("slug", slugClean)
     .maybeSingle();
+
+  if (!error && !col) {
+    const second = await supabase
+      .from("collections")
+      .select(collectionSelect)
+      .ilike("slug", slugClean)
+      .maybeSingle();
+    col = second.data;
+    error = second.error;
+  }
+
   if (error || !col) return null;
   const c = col as CollectionRow;
 
   const { data: prows, error: productsError } = await supabase
     .from("products")
-    .select("id, slug, title, price, compare_price, hidden")
-    .eq("collection_id", c.id)
-    .or("hidden.eq.false,hidden.is.null");
+    .select("id, slug, title, price, compare_price, hidden, collection_id")
+    .eq("collection_id", c.id);
 
   if (productsError) {
     console.error("fetchCollectionBySlug products:", productsError.message);
@@ -294,8 +314,12 @@ export async function fetchCollectionBySlug(slug: string) {
     price: number;
     compare_price: number | null;
     hidden: boolean | null;
+    collection_id: string | null;
   }>;
-  const filtered = productsRaw.filter((p) => p.hidden !== true);
+  const filtered = productsRaw.filter(
+    (p) =>
+      p.collection_id === c.id && p.hidden !== true,
+  );
   const pids = filtered.map((p) => p.id);
 
   let variants: VariantRow[] = [];
@@ -316,15 +340,20 @@ export async function fetchCollectionBySlug(slug: string) {
   const vByPid = groupByProductId(variants);
   const imgByPid = groupByProductId(images);
 
-  const products = filtered.map((p) => ({
-    _id: p.id,
-    title: p.title,
-    slug: slugRef(p.slug),
-    price: p.price,
-    comparePrice: p.compare_price != null ? p.compare_price : null,
-    images: mapProductImages(imgByPid.get(p.id)),
-    variants: (vByPid.get(p.id) ?? []).map((v) => mapVariant(v as VariantRow)),
-  }));
+  const products = filtered.map((p) => {
+    const imgRows = imgByPid.get(p.id);
+    const imageUrls = mapProductImages(imgRows);
+    return {
+      _id: p.id,
+      title: p.title,
+      slug: slugRef(p.slug),
+      price: p.price,
+      comparePrice: p.compare_price != null ? p.compare_price : null,
+      thumbUrl: firstImageUrl(imgRows),
+      images: imageUrls,
+      variants: (vByPid.get(p.id) ?? []).map((v) => mapVariant(v as VariantRow)),
+    };
+  });
 
   return {
     _id: c.id,
