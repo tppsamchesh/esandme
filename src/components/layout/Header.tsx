@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useCart } from "@/lib/store/cart";
 
 const navLinks = [
+  { href: "/baby-shower-gifting", label: "Baby Shower" },
   { href: "/collections/muslins", label: "Muslins" },
   { href: "/collections/changing-mats", label: "Changing Mats" },
   { href: "/collections/changing-bags", label: "Changing Bags" },
   { href: "/collections/snuggy-bunny", label: "Snuggy Bunny" },
   { href: "/our-story", label: "Our Story" },
-  { href: "/baby-shower-gifting", label: "Baby Shower" },
 ] as const;
 
 function CartButton() {
