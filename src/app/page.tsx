@@ -15,7 +15,8 @@ const collections: {
   {
     href: "/collections/changing-mats",
     label: "Changing Mats",
-    imageUrl: null,
+    imageUrl:
+      "https://zgskeielwbqasawbtjsg.supabase.co/storage/v1/object/public/product-images/Twilight%20Changing%20Mat%20in%20a%20car.png",
   },
   {
     href: "/collections/changing-bags",
@@ -26,7 +27,8 @@ const collections: {
   {
     href: "/collections/snuggy-bunny",
     label: "Snuggy Bunny",
-    imageUrl: null,
+    imageUrl:
+      "https://zgskeielwbqasawbtjsg.supabase.co/storage/v1/object/public/product-images/Polkadot%20bunny%20in%20a%20basket.png",
   },
 ];
 
