@@ -14,7 +14,8 @@ export async function generateMetadata({
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
-  const { slug } = await params;
+  const { slug: rawSlug } = await params;
+  const slug = typeof rawSlug === "string" ? rawSlug.trim() : "";
   const collection = (await fetchCollectionBySlug(slug)) as CollectionDoc | null;
 
   if (!collection) {
@@ -39,7 +40,8 @@ export default async function CollectionPage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
-  const { slug } = await params;
+  const { slug: rawSlug } = await params;
+  const slug = typeof rawSlug === "string" ? rawSlug.trim() : "";
   const collection = await fetchCollectionBySlug(slug);
 
   if (!collection) {

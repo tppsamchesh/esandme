@@ -33,7 +33,7 @@ type VariantRow = {
 type ImageRow = {
   product_id: string;
   url: string;
-  sort_order: number | null;
+  position: number | null;
 };
 
 type CollectionRow = {
@@ -84,7 +84,7 @@ function mapVariant(v: VariantRow) {
 
 function mapProductImages(rows: ImageRow[] | undefined): string[] {
   const sorted = [...(rows ?? [])].sort(
-    (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
+    (a, b) => (a.position ?? 0) - (b.position ?? 0),
   );
   return sorted.map((r) => r.url).filter(Boolean);
 }
@@ -152,9 +152,9 @@ export async function fetchAllProductsPublic(): Promise<
       supabase.from("product_variants").select("*").in("product_id", ids),
       supabase
         .from("product_images")
-        .select("product_id, url, sort_order")
+        .select("product_id, url, position")
         .in("product_id", ids)
-        .order("sort_order", { ascending: true }),
+        .order("position", { ascending: true }),
       cids.length
         ? supabase.from("collections").select("id, title, slug").in("id", cids)
         : Promise.resolve({ data: [] as CollectionRow[], error: null }),
@@ -208,9 +208,9 @@ async function loadProductWithRelations(slug: string): Promise<{
     supabase.from("product_variants").select("*").eq("product_id", row.id),
     supabase
       .from("product_images")
-      .select("product_id, url, sort_order")
+      .select("product_id, url, position")
       .eq("product_id", row.id)
-      .order("sort_order", { ascending: true }),
+      .order("position", { ascending: true }),
     row.collection_id
       ? supabase
           .from("collections")
@@ -272,15 +272,20 @@ export async function fetchCollectionBySlug(slug: string) {
     .select(
       "id, slug, title, description, hero_image_url, seo_title, seo_description",
     )
-    .eq("slug", slug)
+    .eq("slug", slug.trim())
     .maybeSingle();
   if (error || !col) return null;
   const c = col as CollectionRow;
 
-  const { data: prows } = await supabase
+  const { data: prows, error: productsError } = await supabase
     .from("products")
     .select("id, slug, title, price, compare_price, hidden")
-    .eq("collection_id", c.id);
+    .eq("collection_id", c.id)
+    .or("hidden.eq.false,hidden.is.null");
+
+  if (productsError) {
+    console.error("fetchCollectionBySlug products:", productsError.message);
+  }
 
   const productsRaw = (prows ?? []) as Array<{
     id: string;
@@ -300,9 +305,9 @@ export async function fetchCollectionBySlug(slug: string) {
       supabase.from("product_variants").select("*").in("product_id", pids),
       supabase
         .from("product_images")
-        .select("product_id, url, sort_order")
+        .select("product_id, url, position")
         .in("product_id", pids)
-        .order("sort_order", { ascending: true }),
+        .order("position", { ascending: true }),
     ]);
     variants = (vr.data ?? []) as VariantRow[];
     images = (ir.data ?? []) as ImageRow[];
