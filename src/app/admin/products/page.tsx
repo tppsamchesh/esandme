@@ -8,7 +8,6 @@ import {
 import { formatGbp } from "@/lib/admin/format";
 import { adminSupabase } from "@/lib/supabase/admin-client";
 import { getSupabase } from "@/lib/supabase/client";
-import { uploadPublicImage } from "@/lib/supabase/storage";
 import Image from "next/image";
 import type { Metadata } from "next";
 import { revalidatePath } from "next/cache";
@@ -333,162 +332,6 @@ export async function saveProductSale(formData: FormData) {
   redirect(redirectTo);
 }
 
-export async function saveProductVariantsAndImages(formData: FormData) {
-  "use server";
-  const id = formData.get("id")?.toString()?.trim();
-  const redirectTo = formData.get("redirectTo")?.toString() || "/admin/products";
-  if (!id) {
-    redirect(redirectTo);
-  }
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    redirect(redirectTo);
-  }
-
-  const extraRowsRaw = formData.get("extraVariantRows")?.toString();
-  const extraVariantRows = Math.min(
-    50,
-    Math.max(0, parseInt(extraRowsRaw ?? "0", 10) || 0),
-  );
-
-  try {
-    const { data: prod, error: pe } = await adminSupabase
-      .from("products")
-      .select("id")
-      .eq("id", id)
-      .maybeSingle();
-    if (pe || !prod) {
-      redirect(redirectTo);
-    }
-
-    const removeVariantKeys = new Set(
-      formData.getAll("removeVariant").map((v) => String(v)),
-    );
-    const removeImageIds = new Set(
-      formData.getAll("removeImageId").map((v) => String(v)),
-    );
-
-    const { data: dbVariantRows } = await adminSupabase
-      .from("product_variants")
-      .select("id")
-      .eq("product_id", id);
-    const dbVariantIds = new Set(
-      (dbVariantRows ?? []).map((r: { id: string }) => r.id),
-    );
-
-    for (const rid of removeVariantKeys) {
-      if (dbVariantIds.has(rid)) {
-        await adminSupabase.from("product_variants").delete().eq("id", rid);
-      }
-    }
-
-    for (const vid of dbVariantIds) {
-      if (removeVariantKeys.has(vid)) continue;
-
-      const title = formData.get(`variant_${vid}_title`)?.toString() ?? "";
-      const size = formData.get(`variant_${vid}_size`)?.toString() ?? "";
-      const colour = formData.get(`variant_${vid}_colour`)?.toString() ?? "";
-      const sku = formData.get(`variant_${vid}_sku`)?.toString() ?? "";
-      const priceGbp =
-        formData.get(`variant_${vid}_priceGbp`)?.toString() ?? "";
-      const stockRaw = formData.get(`variant_${vid}_stock`)?.toString() ?? "";
-
-      const pricePence = parseOptionalPence(priceGbp);
-      const stock =
-        stockRaw.trim() === ""
-          ? 0
-          : Math.max(0, parseInt(stockRaw, 10) || 0);
-
-      const upd: Record<string, unknown> = {
-        title,
-        size,
-        colour,
-        sku,
-        stock,
-      };
-      if (pricePence != null) upd.price = pricePence;
-      else upd.price = null;
-
-      await adminSupabase
-        .from("product_variants")
-        .update(upd)
-        .eq("id", vid)
-        .eq("product_id", id);
-    }
-
-    for (let i = 0; i < extraVariantRows; i++) {
-      const title = formData.get(`new_${i}_title`)?.toString() ?? "";
-      const size = formData.get(`new_${i}_size`)?.toString() ?? "";
-      const colour = formData.get(`new_${i}_colour`)?.toString() ?? "";
-      const sku = formData.get(`new_${i}_sku`)?.toString() ?? "";
-      const priceGbp = formData.get(`new_${i}_priceGbp`)?.toString() ?? "";
-      const stockRaw = formData.get(`new_${i}_stock`)?.toString() ?? "";
-
-      const empty =
-        !title.trim() &&
-        !size.trim() &&
-        !colour.trim() &&
-        !sku.trim() &&
-        !priceGbp.trim() &&
-        !stockRaw.trim();
-      if (empty) continue;
-
-      const pricePence = parseOptionalPence(priceGbp);
-      const stock =
-        stockRaw.trim() === ""
-          ? 0
-          : Math.max(0, parseInt(stockRaw, 10) || 0);
-
-      const ins: Record<string, unknown> = {
-        product_id: id,
-        title: title.trim(),
-        size: size.trim(),
-        colour: colour.trim(),
-        sku: sku.trim(),
-        stock,
-      };
-      if (pricePence != null) ins.price = pricePence;
-      await adminSupabase.from("product_variants").insert(ins);
-    }
-
-    for (const imgId of removeImageIds) {
-      await adminSupabase
-        .from("product_images")
-        .delete()
-        .eq("id", imgId)
-        .eq("product_id", id);
-    }
-
-    const { data: sortRow } = await adminSupabase
-      .from("product_images")
-      .select("position")
-      .eq("product_id", id)
-      .order("position", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    let sortBase =
-      typeof (sortRow as { position: number | null } | null)?.position ===
-      "number"
-        ? (sortRow as { position: number }).position
-        : -1;
-
-    const newFiles = formData.getAll("newImages");
-    for (const f of newFiles) {
-      if (!(f instanceof File) || f.size === 0) continue;
-      sortBase += 1;
-      const url = await uploadPublicImage(f, "products");
-      await adminSupabase.from("product_images").insert({
-        product_id: id,
-        url,
-        position: sortBase,
-      });
-    }
-  } catch {
-    // Leave UI unchanged on failure; user can retry
-  }
-  revalidatePath("/admin/products");
-  redirect(redirectTo);
-}
-
 export async function deleteProduct(formData: FormData) {
   "use server";
   const id = formData.get("id")?.toString();
@@ -581,12 +424,7 @@ export default async function AdminProductsPage({
     q: sp.q,
     collection: sp.collection,
     editPanel: sp.editPanel,
-    extraVariantRows: sp.extraVariantRows,
   });
-  const extraVariantRowsCount = Math.min(
-    50,
-    Math.max(0, parseInt(sp.extraVariantRows ?? "0", 10) || 0),
-  );
   const editPanelId = sp.editPanel?.trim() || undefined;
   const saveVariantsRedirectTo = buildAdminProductsPath({
     q: sp.q,
@@ -867,32 +705,101 @@ export default async function AdminProductsPage({
                               collection: sp.collection,
                               editPanel: p._id,
                             })}
-                            className="text-sm font-medium text-[#8BA888] underline underline-offset-2 hover:opacity-90"
+                            className="text-sm font-medium text-brand-primary underline underline-offset-2 hover:opacity-90"
                           >
-                            Edit variants &amp; images
+                            Edit product
                           </Link>
                         </p>
                       ) : (
                         <form
-                          action={saveProductVariantsAndImages}
-                          encType="multipart/form-data"
+                          data-edit-product-form=""
+                          data-product-id={p._id}
+                          data-redirect={saveVariantsRedirectTo}
                           className="mt-4 space-y-4 rounded-lg border border-brand-text/15 bg-brand-bg/50 p-3"
                         >
-                          <input type="hidden" name="id" value={p._id} />
-                          <input
-                            type="hidden"
-                            name="redirectTo"
-                            value={saveVariantsRedirectTo}
-                          />
-                          <input
-                            type="hidden"
-                            name="extraVariantRows"
-                            value={String(extraVariantRowsCount)}
-                          />
+                          <p className="text-xs font-medium uppercase tracking-wide text-brand-text/60">
+                            Product details
+                          </p>
+                          <label className="block text-[11px] text-brand-text/70">
+                            Title
+                            <input
+                              data-ep-field="title"
+                              type="text"
+                              required
+                              defaultValue={p.title}
+                              className="mt-0.5 w-full rounded-md border border-brand-text/20 bg-white px-2 py-1.5 text-sm text-brand-text outline-none ring-brand-primary focus:ring-2"
+                              autoComplete="off"
+                            />
+                          </label>
+                          <label className="block text-[11px] text-brand-text/70">
+                            Slug
+                            <input
+                              data-ep-field="slug"
+                              type="text"
+                              required
+                              defaultValue={p.slug?.current ?? ""}
+                              className="mt-0.5 w-full rounded-md border border-brand-text/20 bg-white px-2 py-1.5 text-sm text-brand-text outline-none ring-brand-primary focus:ring-2"
+                              autoComplete="off"
+                            />
+                          </label>
+                          <label className="block text-[11px] text-brand-text/70">
+                            Description
+                            <textarea
+                              data-ep-field="description"
+                              rows={3}
+                              defaultValue={p.description ?? ""}
+                              className="mt-0.5 w-full resize-y rounded-md border border-brand-text/20 bg-white px-2 py-1.5 text-sm text-brand-text outline-none ring-brand-primary focus:ring-2"
+                            />
+                          </label>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <label className="block text-[11px] text-brand-text/70">
+                              Base price (£)
+                              <input
+                                data-ep-field="pricePounds"
+                                type="text"
+                                inputMode="decimal"
+                                required
+                                defaultValue={(p.price / 100).toFixed(2)}
+                                className="mt-0.5 w-full rounded-md border border-brand-text/20 bg-white px-2 py-1.5 text-sm text-brand-text outline-none ring-brand-primary focus:ring-2"
+                                autoComplete="off"
+                              />
+                            </label>
+                            <label className="block text-[11px] text-brand-text/70">
+                              Collection
+                              <select
+                                data-ep-field="collectionId"
+                                className="mt-0.5 w-full rounded-md border border-brand-text/20 bg-white px-2 py-1.5 text-sm text-brand-text outline-none ring-brand-primary focus:ring-2"
+                                defaultValue={p.collection?._id ?? ""}
+                                required
+                              >
+                                {collections.length === 0 ? (
+                                  <option value="">No collections</option>
+                                ) : (
+                                  collections.map((c) => (
+                                    <option key={c._id} value={c._id}>
+                                      {c.title}
+                                    </option>
+                                  ))
+                                )}
+                              </select>
+                            </label>
+                          </div>
+                          <label className="flex cursor-pointer items-center gap-2 text-sm text-brand-text">
+                            <input
+                              data-ep-field="published"
+                              type="checkbox"
+                              defaultChecked={!isHidden}
+                              className="h-4 w-4 rounded border-brand-text/30 text-brand-primary focus:ring-brand-primary"
+                            />
+                            Published (visible in shop)
+                          </label>
                           <p className="text-xs font-medium uppercase tracking-wide text-brand-text/60">
                             Variants
                           </p>
-                          <div className="space-y-3">
+                          <div
+                            className="space-y-3"
+                            data-ep-variant-list=""
+                          >
                             {(p.variants ?? []).map((v) => {
                               const k = v._key;
                               if (!k) return null;
@@ -909,12 +816,12 @@ export default async function AdminProductsPage({
                               return (
                                 <div
                                   key={k}
+                                  data-variant-row=""
                                   className="relative rounded-lg border border-brand-text/10 bg-white p-3"
                                 >
                                   <input
                                     type="checkbox"
-                                    name="removeVariant"
-                                    value={k}
+                                    data-variant-remove=""
                                     id={`rm-variant-${p._id}-${k}`}
                                     className="peer sr-only"
                                   />
@@ -922,7 +829,7 @@ export default async function AdminProductsPage({
                                     <label className="block text-[11px] text-brand-text/70">
                                       Title
                                       <input
-                                        name={`variant_${k}_title`}
+                                        data-v-field="title"
                                         type="text"
                                         defaultValue={v.title ?? ""}
                                         className="mt-0.5 w-full rounded border border-brand-text/20 px-2 py-1.5 text-sm text-brand-text"
@@ -932,7 +839,7 @@ export default async function AdminProductsPage({
                                     <label className="block text-[11px] text-brand-text/70">
                                       Size
                                       <input
-                                        name={`variant_${k}_size`}
+                                        data-v-field="size"
                                         type="text"
                                         defaultValue={v.size ?? ""}
                                         className="mt-0.5 w-full rounded border border-brand-text/20 px-2 py-1.5 text-sm text-brand-text"
@@ -942,7 +849,7 @@ export default async function AdminProductsPage({
                                     <label className="block text-[11px] text-brand-text/70">
                                       Colour
                                       <input
-                                        name={`variant_${k}_colour`}
+                                        data-v-field="colour"
                                         type="text"
                                         defaultValue={v.colour ?? ""}
                                         className="mt-0.5 w-full rounded border border-brand-text/20 px-2 py-1.5 text-sm text-brand-text"
@@ -952,7 +859,7 @@ export default async function AdminProductsPage({
                                     <label className="block text-[11px] text-brand-text/70">
                                       SKU
                                       <input
-                                        name={`variant_${k}_sku`}
+                                        data-v-field="sku"
                                         type="text"
                                         defaultValue={v.sku ?? ""}
                                         className="mt-0.5 w-full rounded border border-brand-text/20 px-2 py-1.5 text-sm text-brand-text"
@@ -962,7 +869,7 @@ export default async function AdminProductsPage({
                                     <label className="block text-[11px] text-brand-text/70">
                                       Price (£)
                                       <input
-                                        name={`variant_${k}_priceGbp`}
+                                        data-v-field="priceGbp"
                                         type="text"
                                         inputMode="decimal"
                                         defaultValue={priceGbp}
@@ -974,7 +881,7 @@ export default async function AdminProductsPage({
                                     <label className="block text-[11px] text-brand-text/70">
                                       Stock
                                       <input
-                                        name={`variant_${k}_stock`}
+                                        data-v-field="stock"
                                         type="number"
                                         min={0}
                                         step={1}
@@ -993,100 +900,106 @@ export default async function AdminProductsPage({
                                 </div>
                               );
                             })}
-                            {Array.from(
-                              { length: extraVariantRowsCount },
-                              (_, i) => (
-                                <div
-                                  key={`new-${i}`}
-                                  className="rounded-lg border border-dashed border-[#8BA888]/50 bg-white p-3"
-                                >
-                                  <p className="mb-2 text-[11px] font-medium text-[#8BA888]">
-                                    New variant
-                                  </p>
-                                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                                    <label className="block text-[11px] text-brand-text/70">
-                                      Title
-                                      <input
-                                        name={`new_${i}_title`}
-                                        type="text"
-                                        className="mt-0.5 w-full rounded border border-brand-text/20 px-2 py-1.5 text-sm"
-                                        autoComplete="off"
-                                      />
-                                    </label>
-                                    <label className="block text-[11px] text-brand-text/70">
-                                      Size
-                                      <input
-                                        name={`new_${i}_size`}
-                                        type="text"
-                                        className="mt-0.5 w-full rounded border border-brand-text/20 px-2 py-1.5 text-sm"
-                                        autoComplete="off"
-                                      />
-                                    </label>
-                                    <label className="block text-[11px] text-brand-text/70">
-                                      Colour
-                                      <input
-                                        name={`new_${i}_colour`}
-                                        type="text"
-                                        className="mt-0.5 w-full rounded border border-brand-text/20 px-2 py-1.5 text-sm"
-                                        autoComplete="off"
-                                      />
-                                    </label>
-                                    <label className="block text-[11px] text-brand-text/70">
-                                      SKU
-                                      <input
-                                        name={`new_${i}_sku`}
-                                        type="text"
-                                        className="mt-0.5 w-full rounded border border-brand-text/20 px-2 py-1.5 text-sm"
-                                        autoComplete="off"
-                                      />
-                                    </label>
-                                    <label className="block text-[11px] text-brand-text/70">
-                                      Price (£)
-                                      <input
-                                        name={`new_${i}_priceGbp`}
-                                        type="text"
-                                        inputMode="decimal"
-                                        placeholder="0.00"
-                                        className="mt-0.5 w-full rounded border border-brand-text/20 px-2 py-1.5 text-sm"
-                                        autoComplete="off"
-                                      />
-                                    </label>
-                                    <label className="block text-[11px] text-brand-text/70">
-                                      Stock
-                                      <input
-                                        name={`new_${i}_stock`}
-                                        type="number"
-                                        min={0}
-                                        step={1}
-                                        className="mt-0.5 w-full rounded border border-brand-text/20 px-2 py-1.5 text-sm"
-                                        autoComplete="off"
-                                      />
-                                    </label>
-                                  </div>
-                                </div>
-                              ),
-                            )}
                           </div>
-                          <Link
-                            href={buildAdminProductsPath({
-                              q: sp.q,
-                              collection: sp.collection,
-                              editPanel: p._id,
-                              extraVariantRows: String(
-                                extraVariantRowsCount + 1,
-                              ),
-                            })}
-                            className="inline-flex text-sm font-medium text-[#8BA888] underline underline-offset-2 hover:opacity-90"
+                          <div
+                            id={`variant-template-wrap-${p._id}`}
+                            className="hidden"
+                            aria-hidden
+                          >
+                            <div
+                              data-variant-row=""
+                              className="relative rounded-lg border border-dashed border-brand-primary/40 bg-white p-3"
+                            >
+                              <input
+                                type="checkbox"
+                                data-variant-remove=""
+                                id={`rm-variant-tpl-${p._id}`}
+                                className="peer sr-only"
+                              />
+                              <div className="grid gap-2 pt-5 peer-checked:opacity-50 peer-checked:line-through sm:grid-cols-2 lg:grid-cols-3">
+                                <label className="block text-[11px] text-brand-text/70">
+                                  Title
+                                  <input
+                                    data-v-field="title"
+                                    type="text"
+                                    className="mt-0.5 w-full rounded border border-brand-text/20 px-2 py-1.5 text-sm"
+                                    autoComplete="off"
+                                  />
+                                </label>
+                                <label className="block text-[11px] text-brand-text/70">
+                                  Size
+                                  <input
+                                    data-v-field="size"
+                                    type="text"
+                                    className="mt-0.5 w-full rounded border border-brand-text/20 px-2 py-1.5 text-sm"
+                                    autoComplete="off"
+                                  />
+                                </label>
+                                <label className="block text-[11px] text-brand-text/70">
+                                  Colour
+                                  <input
+                                    data-v-field="colour"
+                                    type="text"
+                                    className="mt-0.5 w-full rounded border border-brand-text/20 px-2 py-1.5 text-sm"
+                                    autoComplete="off"
+                                  />
+                                </label>
+                                <label className="block text-[11px] text-brand-text/70">
+                                  SKU
+                                  <input
+                                    data-v-field="sku"
+                                    type="text"
+                                    className="mt-0.5 w-full rounded border border-brand-text/20 px-2 py-1.5 text-sm"
+                                    autoComplete="off"
+                                  />
+                                </label>
+                                <label className="block text-[11px] text-brand-text/70">
+                                  Price (£)
+                                  <input
+                                    data-v-field="priceGbp"
+                                    type="text"
+                                    inputMode="decimal"
+                                    placeholder="0.00"
+                                    className="mt-0.5 w-full rounded border border-brand-text/20 px-2 py-1.5 text-sm"
+                                    autoComplete="off"
+                                  />
+                                </label>
+                                <label className="block text-[11px] text-brand-text/70">
+                                  Stock
+                                  <input
+                                    data-v-field="stock"
+                                    type="number"
+                                    min={0}
+                                    step={1}
+                                    defaultValue="0"
+                                    className="mt-0.5 w-full rounded border border-brand-text/20 px-2 py-1.5 text-sm"
+                                    autoComplete="off"
+                                  />
+                                </label>
+                              </div>
+                              <label
+                                htmlFor={`rm-variant-tpl-${p._id}`}
+                                className="absolute right-2 top-2 cursor-pointer text-xs font-medium text-red-800 hover:underline"
+                              >
+                                Remove
+                              </label>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            data-add-variant=""
+                            data-template-wrap={`variant-template-wrap-${p._id}`}
+                            className="text-sm font-medium text-brand-primary underline underline-offset-2 hover:opacity-90"
                           >
                             + Add variant
-                          </Link>
+                          </button>
                           <div className="border-t border-brand-text/10 pt-3">
                             <p className="text-xs font-medium uppercase tracking-wide text-brand-text/60">
                               Images
                             </p>
                             <p className="mt-1 text-[11px] text-brand-text/50">
-                              Check &quot;Remove&quot; to drop an image on save.
-                              New files upload when you save.
+                              Mark an image for removal, or choose new files to
+                              upload immediately.
                             </p>
                             <div className="mt-2 flex flex-wrap gap-3">
                               {(p.images ?? []).map((img, imgIdx) => {
@@ -1101,8 +1014,8 @@ export default async function AdminProductsPage({
                                   >
                                     <input
                                       type="checkbox"
-                                      name="removeImageId"
-                                      value={imgId}
+                                      data-img-remove=""
+                                      data-img-id={imgId}
                                       id={`rm-img-${p._id}-${imgIdx}-${imgId}`}
                                       className="peer sr-only"
                                     />
@@ -1125,24 +1038,29 @@ export default async function AdminProductsPage({
                                   </div>
                                 );
                               })}
+                              <div
+                                data-pending-images=""
+                                className="contents"
+                              />
                             </div>
                             <label className="mt-3 block text-[11px] text-brand-text/70">
                               Add images
                               <input
-                                name="newImages"
+                                data-edit-images-input=""
                                 type="file"
                                 accept="image/*"
                                 multiple
-                                className="mt-1 block w-full text-sm file:mr-3 file:rounded file:border-0 file:bg-[#8BA888] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white"
+                                className="mt-1 block w-full text-sm text-brand-text/80 file:mr-3 file:rounded-md file:border-0 file:bg-brand-bg file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-text"
                               />
                             </label>
                           </div>
                           <div className="flex flex-wrap gap-2 pt-1">
                             <button
                               type="submit"
-                              className="rounded-md bg-[#1C1C1C] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+                              data-ep-submit=""
+                              className="rounded-md bg-brand-text px-4 py-2 text-sm font-medium text-white hover:opacity-90"
                             >
-                              Save variants &amp; images
+                              Save product
                             </button>
                             <Link
                               href={saveVariantsRedirectTo}
@@ -1153,25 +1071,31 @@ export default async function AdminProductsPage({
                           </div>
                         </form>
                       )}
-                      <form action={toggleProductHidden} className="mt-3">
-                        <input type="hidden" name="id" value={p._id} />
-                        <input
-                          type="hidden"
-                          name="nextHidden"
-                          value={String(!isHidden)}
-                        />
-                        <input type="hidden" name="redirectTo" value={returnTo} />
-                        <button
-                          type="submit"
-                          className={`inline-flex rounded-full px-3 py-1 text-xs font-medium transition-opacity hover:opacity-90 ${
-                            isHidden
-                              ? "bg-brand-text/10 text-brand-text/70"
-                              : "bg-emerald-100 text-emerald-900"
-                          }`}
-                        >
-                          {isHidden ? "Hidden" : "Live"}
-                        </button>
-                      </form>
+                      {editPanelId !== p._id ? (
+                        <form action={toggleProductHidden} className="mt-3">
+                          <input type="hidden" name="id" value={p._id} />
+                          <input
+                            type="hidden"
+                            name="nextHidden"
+                            value={String(!isHidden)}
+                          />
+                          <input
+                            type="hidden"
+                            name="redirectTo"
+                            value={returnTo}
+                          />
+                          <button
+                            type="submit"
+                            className={`inline-flex rounded-full px-3 py-1 text-xs font-medium transition-opacity hover:opacity-90 ${
+                              isHidden
+                                ? "bg-brand-text/10 text-brand-text/70"
+                                : "bg-emerald-100 text-emerald-900"
+                            }`}
+                          >
+                            {isHidden ? "Hidden" : "Live"}
+                          </button>
+                        </form>
+                      ) : null}
                     </div>
                   </div>
                 );
@@ -1187,6 +1111,127 @@ document.addEventListener('click',function(e){
 var t=e.target;if(!t||!t.closest)return;
 var c=t.closest('[data-close-details]');
 if(c){e.preventDefault();var d=c.closest('details');if(d)d.open=false;}
+},true);
+
+function parseGbp(s){
+if(s==null)return null;
+var t=String(s).trim();
+if(!t)return null;
+var n=parseFloat(t.replace(/£/g,'').trim());
+if(isNaN(n)||n<0)return null;
+return Math.round(n*100);
+}
+
+document.addEventListener('click',function(e){
+var btn=e.target&&e.target.closest&&e.target.closest('[data-add-variant]');
+if(!btn)return;
+e.preventDefault();
+var wid=btn.getAttribute('data-template-wrap');
+var wrap=wid?document.getElementById(wid):null;
+if(!wrap||!wrap.firstElementChild)return;
+var row=wrap.firstElementChild.cloneNode(true);
+var uid='nv-'+Date.now();
+var cb=row.querySelector('[data-variant-remove]');
+if(cb){cb.checked=false;cb.id='rm-'+uid;}
+var lab=row.querySelector('label[for]');
+if(lab&&cb)lab.setAttribute('for',cb.id);
+row.querySelectorAll('input:not([type=checkbox])').forEach(function(inp){
+if(inp.getAttribute('data-v-field')==='stock')inp.value='0';
+else inp.value='';
+});
+var list=btn.closest('form')&&btn.closest('form').querySelector('[data-ep-variant-list]');
+if(list)list.appendChild(row);
+},true);
+
+document.addEventListener('change',function(e){
+var inp=e.target;
+if(!inp||!inp.hasAttribute||!inp.hasAttribute('data-edit-images-input'))return;
+var form=inp.closest('form');
+if(!form||!form.hasAttribute('data-edit-product-form'))return;
+var pendingHost=form.querySelector('[data-pending-images]');
+if(!pendingHost)return;
+var files=inp.files;
+if(!files||!files.length)return;
+inp.disabled=true;
+form._pendingUrls=form._pendingUrls||[];
+(function go(i){
+if(i>=files.length){inp.value='';inp.disabled=false;return;}
+var fd=new FormData();
+fd.append('file',files[i]);
+fetch('/api/admin/upload-image',{method:'POST',body:fd})
+.then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j,r:r};});})
+.then(function(x){
+if(!x.ok||!x.j||!x.j.url)throw new Error((x.j&&x.j.error)||'Upload failed');
+form._pendingUrls.push(x.j.url);
+var im=document.createElement('img');
+im.src=x.j.url;
+im.alt='';
+im.width=96;im.height=96;
+im.className='h-20 w-20 rounded-md border border-brand-text/15 object-cover';
+pendingHost.appendChild(im);
+go(i+1);
+}).catch(function(err){alert(err.message||String(err));inp.value='';inp.disabled=false;});
+})(0);
+},true);
+
+document.addEventListener('submit',function(e){
+var form=e.target;
+if(!form||!form.hasAttribute||!form.hasAttribute('data-edit-product-form'))return;
+e.preventDefault();
+var pid=form.getAttribute('data-product-id');
+var red=form.getAttribute('data-redirect')||'/admin/products';
+if(!pid)return;
+var title=(form.querySelector('[data-ep-field="title"]')||{}).value||'';
+var slug=(form.querySelector('[data-ep-field="slug"]')||{}).value||'';
+var description=(form.querySelector('[data-ep-field="description"]')||{}).value||'';
+var collectionId=(form.querySelector('[data-ep-field="collectionId"]')||{}).value||'';
+var priceRaw=(form.querySelector('[data-ep-field="pricePounds"]')||{}).value||'';
+var pricePounds=parseFloat(String(priceRaw).replace(/£/g,'').trim());
+if(isNaN(pricePounds)||pricePounds<0){alert('Enter a valid base price in pounds.');return;}
+var published=!!(form.querySelector('[data-ep-field="published"]')&&form.querySelector('[data-ep-field="published"]').checked);
+var variants=[];
+var vlist=form.querySelector('[data-ep-variant-list]');
+if(vlist)vlist.querySelectorAll('[data-variant-row]').forEach(function(row){
+var rm=row.querySelector('[data-variant-remove]');
+if(rm&&rm.checked)return;
+var titleV=(row.querySelector('[data-v-field="title"]')||{}).value||'';
+var sizeV=(row.querySelector('[data-v-field="size"]')||{}).value||'';
+var colourV=(row.querySelector('[data-v-field="colour"]')||{}).value||'';
+var skuV=(row.querySelector('[data-v-field="sku"]')||{}).value||'';
+var stockRaw=(row.querySelector('[data-v-field="stock"]')||{}).value||'0';
+var stock=Math.max(0,parseInt(stockRaw,10)||0);
+var pp=parseGbp((row.querySelector('[data-v-field="priceGbp"]')||{}).value);
+variants.push({title:titleV,size:sizeV,colour:colourV,sku:skuV,stock:stock,pricePence:pp});
+});
+var imageIdsToRemove=[];
+form.querySelectorAll('[data-img-remove]').forEach(function(cb){
+if(cb.checked&&cb.getAttribute('data-img-id'))imageIdsToRemove.push(cb.getAttribute('data-img-id'));
+});
+var imageUrlsToAdd=form._pendingUrls||[];
+var sub=form.querySelector('[data-ep-submit]');
+if(sub)sub.disabled=true;
+fetch('/api/admin/products',{
+method:'PATCH',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({
+productId:pid,
+title:title,
+slug:slug,
+description:description,
+collectionId:collectionId,
+published:published,
+pricePounds:pricePounds,
+variants:variants,
+imageUrlsToAdd:imageUrlsToAdd,
+imageIdsToRemove:imageIdsToRemove
+})
+})
+.then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j,r:r};});})
+.then(function(x){
+if(!x.ok)throw new Error((x.j&&x.j.error)||('Request failed ('+x.r.status+')'));
+window.location.href=red;
+})
+.catch(function(err){alert(err.message||String(err));if(sub)sub.disabled=false;});
 },true);
 })();`,
         }}

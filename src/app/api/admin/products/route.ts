@@ -1,4 +1,5 @@
 import { adminSupabase } from "@/lib/supabase/admin-client";
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 
 type VariantInput = {
@@ -172,13 +173,13 @@ export async function POST(req: Request) {
     }
   }
 
-  let sort = 0;
+  let pos = 0;
   for (const url of imageUrls) {
-    console.log("[admin/products POST] inserting image row, sort:", sort, "url:", url);
+    console.log("[admin/products POST] inserting image row, position:", pos, "url:", url);
     const imgRes = await adminSupabase.from("product_images").insert({
       product_id: productId,
       url,
-      sort_order: sort++,
+      position: pos++,
     });
     console.log("[admin/products POST] Supabase product_images.insert result:", {
       data: imgRes.data,
@@ -197,4 +198,189 @@ export async function POST(req: Request) {
 
   console.log("[admin/products POST] success, productId:", productId);
   return NextResponse.json({ data: { id: productId }, error: null });
+}
+
+/**
+ * PATCH /api/admin/products
+ * Full product update: core fields, variants (replace all), images (add URLs / remove by id).
+ * Price is accepted as pounds (pricePounds) and stored as pence.
+ */
+export async function PATCH(req: Request) {
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  if (body === null || typeof body !== "object") {
+    return NextResponse.json({ error: "Expected JSON object body" }, { status: 400 });
+  }
+
+  const b = body as Record<string, unknown>;
+  const productId = typeof b.productId === "string" ? b.productId.trim() : "";
+  const title = typeof b.title === "string" ? b.title.trim() : "";
+  const description =
+    typeof b.description === "string" ? b.description : "";
+  const slug = typeof b.slug === "string" ? b.slug.trim().toLowerCase() : "";
+  const collectionId =
+    typeof b.collectionId === "string" ? b.collectionId.trim() : "";
+  const published = b.published !== false;
+
+  let pricePence: number;
+  if (typeof b.pricePounds === "number" && Number.isFinite(b.pricePounds)) {
+    pricePence = Math.round(b.pricePounds * 100);
+  } else if (typeof b.pricePounds === "string") {
+    const n = parseFloat(b.pricePounds.replace(/£/g, "").trim());
+    if (Number.isNaN(n) || n < 0) {
+      return NextResponse.json(
+        { error: "Invalid pricePounds" },
+        { status: 400 },
+      );
+    }
+    pricePence = Math.round(n * 100);
+  } else {
+    return NextResponse.json(
+      { error: "pricePounds is required (number or string in pounds)" },
+      { status: 400 },
+    );
+  }
+
+  const variantsRaw = Array.isArray(b.variants) ? b.variants : [];
+  const imageUrlsToAdd = Array.isArray(b.imageUrlsToAdd)
+    ? b.imageUrlsToAdd.filter(
+        (u): u is string => typeof u === "string" && u.trim().length > 0,
+      )
+    : [];
+  const imageIdsToRemove = Array.isArray(b.imageIdsToRemove)
+    ? b.imageIdsToRemove.filter(
+        (id): id is string => typeof id === "string" && id.trim().length > 0,
+      )
+    : [];
+
+  if (!productId || !title || !slug || !collectionId) {
+    return NextResponse.json(
+      {
+        error:
+          "productId, title, slug, and collectionId are required",
+      },
+      { status: 400 },
+    );
+  }
+  if (!Number.isFinite(pricePence) || pricePence < 0) {
+    return NextResponse.json({ error: "Invalid price" }, { status: 400 });
+  }
+
+  try {
+    const { error: upErr } = await adminSupabase
+      .from("products")
+      .update({
+        title,
+        slug,
+        description: description.trim() || null,
+        price: pricePence,
+        collection_id: collectionId,
+        hidden: !published,
+      })
+      .eq("id", productId);
+
+    if (upErr) {
+      return NextResponse.json({ error: upErr.message }, { status: 500 });
+    }
+
+    const { error: delVErr } = await adminSupabase
+      .from("product_variants")
+      .delete()
+      .eq("product_id", productId);
+    if (delVErr) throw delVErr;
+
+    const variantRows: Record<string, unknown>[] = [];
+    for (const v of variantsRaw) {
+      if (v === null || typeof v !== "object") continue;
+      const row = v as Record<string, unknown>;
+      const stockRaw = row.stock;
+      const stockNum =
+        typeof stockRaw === "number" && !Number.isNaN(stockRaw)
+          ? stockRaw
+          : parseInt(String(stockRaw ?? "0"), 10);
+      const vr: Record<string, unknown> = {
+        product_id: productId,
+        title: String(row.title ?? "").trim(),
+        size: String(row.size ?? "").trim(),
+        colour: String(row.colour ?? "").trim(),
+        sku: String(row.sku ?? "").trim(),
+        stock: Math.max(0, Math.floor(Number.isNaN(stockNum) ? 0 : stockNum)),
+      };
+      const pp = row.pricePence;
+      if (
+        pp != null &&
+        typeof pp === "number" &&
+        Number.isFinite(pp)
+      ) {
+        vr.price = Math.round(pp);
+      } else {
+        vr.price = null;
+      }
+      variantRows.push(vr);
+    }
+
+    if (variantRows.length > 0) {
+      const { error: vInsErr } = await adminSupabase
+        .from("product_variants")
+        .insert(variantRows);
+      if (vInsErr) throw vInsErr;
+    }
+
+    for (const imgId of imageIdsToRemove) {
+      const { error: delImgErr } = await adminSupabase
+        .from("product_images")
+        .delete()
+        .eq("id", imgId)
+        .eq("product_id", productId);
+      if (delImgErr) throw delImgErr;
+    }
+
+    if (imageUrlsToAdd.length > 0) {
+      const { data: maxRow, error: maxErr } = await adminSupabase
+        .from("product_images")
+        .select("position")
+        .eq("product_id", productId)
+        .order("position", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (maxErr) throw maxErr;
+      let pos =
+        maxRow &&
+        typeof (maxRow as { position: unknown }).position === "number"
+          ? (maxRow as { position: number }).position
+          : -1;
+
+      const imgRows = imageUrlsToAdd.map((url) => {
+        pos += 1;
+        return {
+          product_id: productId,
+          url: url.trim(),
+          position: pos,
+        };
+      });
+      const { error: imgInsErr } = await adminSupabase
+        .from("product_images")
+        .insert(imgRows);
+      if (imgInsErr) throw imgInsErr;
+    }
+
+    revalidatePath("/admin/products");
+    return NextResponse.json({ ok: true });
+  } catch (e: unknown) {
+    const message =
+      e instanceof Error
+        ? e.message
+        : e !== null &&
+            typeof e === "object" &&
+            "message" in e &&
+            typeof (e as { message: unknown }).message === "string"
+          ? (e as { message: string }).message
+          : "Update failed";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
