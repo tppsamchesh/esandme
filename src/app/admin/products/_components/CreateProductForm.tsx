@@ -1,6 +1,7 @@
 "use client";
 
 import { createProduct } from "@/app/admin/products/actions";
+import { getSupabase } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, useTransition } from "react";
 
@@ -56,10 +57,8 @@ function formatCreateProductError(error: unknown): string {
   }
 }
 
-export function CreateProductForm({
-  collections,
-}: {
-  collections: AdminCollectionOption[];
+export function CreateProductForm(_props: {
+  collections?: AdminCollectionOption[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -69,9 +68,10 @@ export function CreateProductForm({
   const [slugEdited, setSlugEdited] = useState(false);
   const [description, setDescription] = useState("");
   const [basePrice, setBasePrice] = useState("");
-  const [collectionId, setCollectionId] = useState(
-    collections[0]?._id ?? "",
+  const [collections, setCollections] = useState<AdminCollectionOption[]>(
+    [],
   );
+  const [collectionId, setCollectionId] = useState("");
   const [published, setPublished] = useState(true);
   const [variants, setVariants] = useState<VariantDraft[]>([]);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
@@ -84,6 +84,30 @@ export function CreateProductForm({
       setSlug(slugify(title));
     }
   }, [title, slugEdited]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = getSupabase();
+    void supabase
+      .from("collections")
+      .select("id, title")
+      .order("title", { ascending: true })
+      .then(({ data, error }) => {
+        if (cancelled || error || !data) return;
+        setCollections(
+          data.map((row) => ({ _id: row.id, title: row.title })),
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (collections.length > 0 && collectionId === "") {
+      setCollectionId(collections[0]._id);
+    }
+  }, [collections, collectionId]);
 
   const resetForm = useCallback(() => {
     setTitle("");
