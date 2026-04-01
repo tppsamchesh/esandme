@@ -155,7 +155,7 @@ export async function PATCH(req: Request) {
     );
   }
 
-  return NextResponse.json({ data, error: null });
+  return NextResponse.json({ data, error: null }, { status: 200 });
 }
 
 type DeleteBody = { id?: string };

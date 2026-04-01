@@ -147,7 +147,7 @@ function HeroImageField({
 }
 
 function CollectionEditCard({
-  collection: c,
+  collection,
   onRemoved,
   onUpdated,
 }: {
@@ -160,21 +160,26 @@ function CollectionEditCard({
   const [deleting, setDeleting] = useState(false);
 
   const [heroImageUrl, setHeroImageUrl] = useState(
-    () => c.hero_image_url ?? "",
+    () => collection.hero_image_url ?? "",
   );
   const [heroImageUploading, setHeroImageUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
-  const [title, setTitle] = useState(c.title);
-  const [description, setDescription] = useState(c.description ?? "");
+  const [title, setTitle] = useState(collection.title);
+  const [description, setDescription] = useState(collection.description ?? "");
 
   useEffect(() => {
-    setHeroImageUrl(c.hero_image_url ?? "");
-    setTitle(c.title);
-    setDescription(c.description ?? "");
-  }, [c.id, c.hero_image_url, c.title, c.description]);
+    setHeroImageUrl(collection.hero_image_url ?? "");
+    setTitle(collection.title);
+    setDescription(collection.description ?? "");
+  }, [
+    collection.id,
+    collection.hero_image_url,
+    collection.title,
+    collection.description,
+  ]);
 
   async function handleDelete() {
     setDeleteError(null);
@@ -183,7 +188,7 @@ function CollectionEditCard({
       const res = await fetch(COLLECTIONS_API_PATH, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: c.id }),
+        body: JSON.stringify({ id: collection.id }),
       });
       const raw = await res.json().catch(() => null);
       if (!res.ok) {
@@ -194,7 +199,7 @@ function CollectionEditCard({
         setDeleteError(err);
         return;
       }
-      onRemoved(c.id);
+      onRemoved(collection.id);
       setConfirmDelete(false);
     } catch {
       setDeleteError("Network error while deleting.");
@@ -247,59 +252,67 @@ function CollectionEditCard({
     }
   }
 
-  async function handleSave(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  const handleSave = async () => {
     if (heroImageUploading) return;
-
-    const titleTrim = title.trim();
-    if (!titleTrim) {
-      setErrorMessage("Title is required.");
-      setSuccessMessage("");
-      return;
-    }
 
     setSaving(true);
     setSuccessMessage("");
     setErrorMessage("");
 
     try {
-      const res = await fetch(COLLECTIONS_API_PATH, {
+      console.log("Saving collection:", {
+        id: collection.id,
+        hero_image_url: heroImageUrl,
+      });
+
+      const res = await fetch("/api/admin/collections", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
         body: JSON.stringify({
-          id: c.id,
-          hero_image_url: heroImageUrl.trim() || null,
-          title: titleTrim,
+          id: collection.id,
+          hero_image_url: heroImageUrl,
+          title: title.trim(),
           description: description.trim() || null,
         }),
       });
-      const raw = await res.json().catch(() => null);
-      if (raw === null || typeof raw !== "object") {
-        setErrorMessage("Invalid response from collections API.");
-        return;
+
+      const data = (await res.json()) as {
+        error?: string | null;
+        message?: string;
+        data?: CollectionRow | null;
+      };
+      console.log("Save response:", res.status, data);
+
+      if (!res.ok) {
+        setErrorMessage(
+          data?.error ||
+            data?.message ||
+            "Save failed — status " + res.status,
+        );
+      } else {
+        setSuccessMessage("Saved successfully");
+        if (data?.data) onUpdated(data.data);
       }
-      const json = raw as ApiRowJson;
-      if (!res.ok || json.error) {
-        setErrorMessage(json.error ?? `Update failed (${res.status})`);
-        return;
-      }
-      setSuccessMessage("Saved successfully");
-      if (json.data) onUpdated(json.data);
-    } catch {
-      setErrorMessage("Network error while saving.");
+    } catch (err) {
+      console.error("Save error:", err);
+      setErrorMessage(
+        err instanceof Error ? err.message : "Something went wrong",
+      );
     } finally {
       setSaving(false);
     }
-  }
+  };
 
-  const slugText = c.slug ?? "";
+  const slugText = collection.slug ?? "";
   const previewSrc = heroImageUrl.trim();
 
   return (
     <div className="flex flex-col overflow-hidden rounded-xl border border-brand-text/10 bg-white text-left shadow-sm transition-shadow hover:border-brand-primary/40 hover:shadow-md">
       <form
-        onSubmit={handleSave}
+        onSubmit={(e) => {
+          e.preventDefault();
+          void handleSave();
+        }}
         className="flex flex-1 flex-col gap-3 p-4"
       >
         <div className="flex flex-wrap items-start justify-between gap-2">
@@ -330,7 +343,8 @@ function CollectionEditCard({
             role="alert"
           >
             <p>
-              Delete <span className="font-semibold">{c.title}</span>? This
+              Delete <span className="font-semibold">{collection.title}</span>
+              ? This
               cannot be undone.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -431,16 +445,16 @@ function CollectionEditCard({
           {saving ? "Saving…" : "Save changes"}
         </button>
 
-        {successMessage ? (
-          <p className="text-sm text-[#8BA888]" role="status">
+        {successMessage && (
+          <p className="text-sm font-medium text-[#8BA888]" role="status">
             {successMessage}
           </p>
-        ) : null}
-        {errorMessage ? (
-          <p className="text-sm text-red-800" role="alert">
+        )}
+        {errorMessage && (
+          <p className="text-sm font-medium text-red-800" role="alert">
             {errorMessage}
           </p>
-        ) : null}
+        )}
       </form>
     </div>
   );
