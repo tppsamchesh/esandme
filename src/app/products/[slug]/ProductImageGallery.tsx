@@ -54,7 +54,7 @@ export function ProductImageGallery({
                 key={img.id}
                 type="button"
                 onClick={() => setSelectedIndex(index)}
-                className={`relative h-16 w-16 shrink-0 cursor-pointer overflow-hidden rounded-md ring-2 ring-offset-1 transition-shadow ${
+                className={`relative h-12 w-12 sm:h-16 sm:w-16 shrink-0 cursor-pointer overflow-hidden rounded-md ring-2 ring-offset-1 transition-shadow ${
                   isSelected
                     ? "ring-brand-primary"
                     : "ring-transparent hover:ring-brand-text/20"

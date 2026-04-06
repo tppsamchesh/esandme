@@ -77,7 +77,7 @@ export default async function CollectionPage({
             <img
               src={col.hero_image_url}
               alt=""
-              className="h-72 w-full object-cover"
+              className="h-48 sm:h-64 md:h-72 w-full object-cover"
             />
             <div className="absolute inset-0 bg-black/20" aria-hidden />
             <h1
