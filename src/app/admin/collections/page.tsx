@@ -253,9 +253,7 @@ function CollectionEditCard({
   }
 
   const handleSave = async () => {
-    alert("Save clicked — heroImageUrl is: " + heroImageUrl);
-
-    const res = await fetch("/api/admin/collections", {
+    await fetch("/api/admin/collections", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -263,9 +261,6 @@ function CollectionEditCard({
         hero_image_url: heroImageUrl,
       }),
     });
-
-    const text = await res.text();
-    alert("Response status: " + res.status + " — body: " + text);
   };
 
   const slugText = collection.slug ?? "";
