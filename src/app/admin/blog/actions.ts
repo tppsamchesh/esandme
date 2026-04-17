@@ -1,7 +1,7 @@
 "use server";
 
 import { getSupabase } from "@/lib/supabase/client";
-import { uploadPublicImage } from "@/lib/supabase/storage";
+import { adminSupabase } from "@/lib/supabase/admin-client";
 import { revalidatePath } from "next/cache";
 
 function revalidateBlog() {
@@ -22,8 +22,15 @@ export async function uploadCoverImage(
     return { ok: false, error: "No image file provided." };
   }
   try {
-    const url = await uploadPublicImage(file, "blog");
-    return { ok: true, url };
+    const ext = file.name.split(".").pop()?.replace(/[^a-z0-9]/gi, "") || "jpg";
+    const path = `blog/${crypto.randomUUID()}.${ext}`;
+    const buf = Buffer.from(await file.arrayBuffer());
+    const { data, error } = await adminSupabase.storage
+      .from("product-images")
+      .upload(path, buf, { contentType: file.type || "image/jpeg", upsert: false });
+    if (error) throw error;
+    const { data: pub } = adminSupabase.storage.from("product-images").getPublicUrl(data.path);
+    return { ok: true, url: pub.publicUrl };
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
     return { ok: false, error: message };
