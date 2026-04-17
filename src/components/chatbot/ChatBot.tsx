@@ -210,9 +210,9 @@ export function ChatBot() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-[100] flex flex-col items-end gap-3">
+    <div className="fixed bottom-6 right-4 z-[100] flex flex-col items-end gap-3 sm:right-6">
       {open && (
-        <div className="flex h-[500px] w-[380px] max-w-[calc(100vw-48px)] flex-col overflow-hidden rounded-2xl border border-brand-text/10 bg-white shadow-xl">
+        <div className="flex h-[500px] max-h-[calc(100dvh-140px)] w-[380px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-brand-text/10 bg-white shadow-xl">
           <div className="shrink-0 bg-brand-primary px-4 py-3 text-white">
             <p className="font-heading text-lg font-medium">
               Hi! I&apos;m here to help 👋

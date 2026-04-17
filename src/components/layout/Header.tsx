@@ -19,7 +19,7 @@ function CartButton() {
   return (
     <Link
       href="/cart"
-      className="relative flex h-10 w-10 items-center justify-center rounded-full text-brand-text transition-colors hover:bg-brand-bg"
+      className="relative flex h-11 w-11 items-center justify-center rounded-full text-brand-text transition-colors hover:bg-brand-bg"
       aria-label={`Shopping cart${count > 0 ? `, ${count} items` : ""}`}
     >
       <svg
@@ -58,7 +58,7 @@ export function Header() {
           <button
             type="button"
             onClick={() => setMenuOpen((o) => !o)}
-            className="absolute left-0 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full text-brand-text transition-colors hover:bg-brand-bg md:hidden"
+            className="absolute left-0 top-1/2 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-full text-brand-text transition-colors hover:bg-brand-bg md:hidden"
             aria-label={menuOpen ? "Close menu" : "Open menu"}
             aria-expanded={menuOpen}
             aria-controls="mobile-nav"

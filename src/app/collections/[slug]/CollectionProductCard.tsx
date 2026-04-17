@@ -54,11 +54,11 @@ export function CollectionProductCard({
           className="absolute inset-0 z-[1] cursor-pointer"
           aria-label={`View ${title}`}
         />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] translate-y-full transition-transform duration-200 ease-out group-hover:translate-y-0">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] transition-transform duration-200 ease-out translate-y-0 sm:translate-y-full sm:group-hover:translate-y-0">
           <button
             type="button"
             onClick={handleAddToBag}
-            className="pointer-events-auto w-full cursor-pointer bg-[#8BA888] py-2 text-xs font-medium text-white transition-opacity hover:opacity-95"
+            className="pointer-events-auto w-full cursor-pointer bg-[#8BA888] py-2.5 text-xs font-medium text-white transition-opacity hover:opacity-95 sm:py-2"
           >
             Add to bag
           </button>

@@ -216,9 +216,24 @@ export default async function ProductPage({
               </p>
             )}
             {product.description ? (
-              <p className="mt-6 font-sans leading-relaxed text-gray-600">
-                {product.description}
-              </p>
+              <div className="mt-5 border-t border-brand-text/8 pt-5">
+                {product.description
+                  .split(/\.\s+/)
+                  .map((s) => s.trim())
+                  .filter(Boolean)
+                  .map((sentence, i, arr) => (
+                    <p
+                      key={i}
+                      className={`${i > 0 ? "mt-3" : ""} font-sans leading-relaxed ${
+                        i === 0
+                          ? "text-base text-brand-text/90"
+                          : "text-sm text-brand-text/75"
+                      }`}
+                    >
+                      {sentence.endsWith(".") ? sentence : `${sentence}.`}
+                    </p>
+                  ))}
+              </div>
             ) : null}
             <div className="mt-8">
               <AddToCart product={product} />

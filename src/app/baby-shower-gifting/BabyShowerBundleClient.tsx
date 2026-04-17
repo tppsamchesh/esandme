@@ -76,7 +76,7 @@ export function BabyShowerBundleClient({
 
   return (
     <div
-      className={`min-h-screen bg-brand-bg ${showBar ? "pb-20" : ""}`}
+      className={`min-h-screen bg-brand-bg ${showBar ? "pb-28" : ""}`}
     >
       <div className="mx-auto max-w-6xl px-4 py-12 md:py-16">
         <h1 className="font-heading text-3xl font-medium tracking-tight text-brand-text md:text-4xl">
@@ -164,7 +164,7 @@ export function BabyShowerBundleClient({
       </div>
 
       {showBar ? (
-        <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white py-3">
+        <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0.75rem))]">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 font-sans sm:px-6">
             <div className="min-w-0 flex-1 overflow-x-auto [-webkit-overflow-scrolling:touch]">
               <p className="whitespace-nowrap text-sm text-brand-text tabular-nums">
@@ -177,7 +177,7 @@ export function BabyShowerBundleClient({
             <button
               type="button"
               onClick={handleAddBundle}
-              className="shrink-0 cursor-pointer rounded-md bg-brand-primary px-6 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
+              className="shrink-0 cursor-pointer rounded-md bg-brand-primary px-6 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 min-h-11"
             >
               Add bundle to bag
             </button>

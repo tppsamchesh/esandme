@@ -132,7 +132,7 @@ export default function CartPage() {
                   onClick={() =>
                     updateQuantity(item.id, Math.max(1, item.quantity - 1))
                   }
-                  className="flex min-h-9 min-w-9 items-center justify-center text-brand-text transition-colors hover:bg-brand-primary/10"
+                  className="flex min-h-11 min-w-11 items-center justify-center text-brand-text transition-colors hover:bg-brand-primary/10"
                   aria-label="Decrease quantity"
                 >
                   -
@@ -143,7 +143,7 @@ export default function CartPage() {
                 <button
                   type="button"
                   onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                  className="flex min-h-9 min-w-9 items-center justify-center text-brand-text transition-colors hover:bg-brand-primary/10"
+                  className="flex min-h-11 min-w-11 items-center justify-center text-brand-text transition-colors hover:bg-brand-primary/10"
                   aria-label="Increase quantity"
                 >
                   +
