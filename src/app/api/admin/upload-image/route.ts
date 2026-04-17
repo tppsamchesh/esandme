@@ -19,7 +19,8 @@ export async function POST(req: Request) {
 
   const originalName =
     fileEntry.name.replace(/^.*[/\\]/, "").trim() || "image";
-  const filename = `${Date.now()}-${originalName}`;
+  const safeName = originalName.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9._-]/g, "");
+  const filename = `${Date.now()}-${safeName || "image"}`;
 
   const buffer = Buffer.from(await fileEntry.arrayBuffer());
 

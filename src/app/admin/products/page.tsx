@@ -1273,8 +1273,9 @@ var files=inp.files;
 if(!files||!files.length)return;
 inp.disabled=true;
 form._pendingUrls=form._pendingUrls||[];
+form._uploading=(form._uploading||0)+1;
 (function go(i){
-if(i>=files.length){inp.value='';inp.disabled=false;return;}
+if(i>=files.length){inp.value='';inp.disabled=false;form._uploading=Math.max(0,(form._uploading||1)-1);return;}
 var fd=new FormData();
 fd.append('file',files[i]);
 fetch('/api/admin/upload-image',{method:'POST',body:fd})
@@ -1289,7 +1290,7 @@ im.width=96;im.height=96;
 im.className='h-20 w-20 rounded-md border border-brand-text/15 object-cover';
 pendingHost.appendChild(im);
 go(i+1);
-}).catch(function(err){alert(err.message||String(err));inp.value='';inp.disabled=false;});
+}).catch(function(err){alert(err.message||String(err));inp.value='';inp.disabled=false;form._uploading=Math.max(0,(form._uploading||1)-1);});
 })(0);
 },true);
 
@@ -1297,6 +1298,7 @@ document.addEventListener('submit',function(e){
 var form=e.target;
 if(!form||!form.hasAttribute||!form.hasAttribute('data-edit-product-form'))return;
 e.preventDefault();
+if(form._uploading&&form._uploading>0){alert('Please wait for images to finish uploading.');return;}
 var pid=form.getAttribute('data-product-id');
 var red=form.getAttribute('data-redirect')||'/admin/products';
 if(!pid)return;
