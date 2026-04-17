@@ -38,6 +38,7 @@ export function PostEditorForm({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const slugTouched = useRef(false);
+  const successTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [title, setTitle] = useState(initial?.title ?? "");
   const [slug, setSlug] = useState(initial?.slug?.current ?? "");
@@ -56,6 +57,7 @@ export function PostEditorForm({
     initialCoverUrl,
   );
   const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (mode === "edit") slugTouched.current = true;
@@ -65,6 +67,12 @@ export function PostEditorForm({
     if (mode !== "new" || slugTouched.current) return;
     setSlug(slugifyTitle(title));
   }, [title, mode]);
+
+  useEffect(() => {
+    return () => {
+      if (successTimer.current) clearTimeout(successTimer.current);
+    };
+  }, []);
 
   async function onCoverFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -98,8 +106,15 @@ export function PostEditorForm({
     };
   }
 
+  function showSuccess(msg: string) {
+    setSuccessMsg(msg);
+    if (successTimer.current) clearTimeout(successTimer.current);
+    successTimer.current = setTimeout(() => setSuccessMsg(null), 4000);
+  }
+
   function submit(publish: boolean) {
     setError(null);
+    setSuccessMsg(null);
     const payload = buildPayload(publish);
     startTransition(async () => {
       if (mode === "new") {
@@ -118,7 +133,13 @@ export function PostEditorForm({
         setError(res.error);
         return;
       }
-      router.refresh();
+      if (publish) {
+        showSuccess("Published! Redirecting to blog list…");
+        setTimeout(() => router.push("/admin/blog"), 1500);
+      } else {
+        showSuccess("Draft saved.");
+        router.refresh();
+      }
     });
   }
 
@@ -139,15 +160,15 @@ export function PostEditorForm({
             type="button"
             disabled={pending}
             onClick={() => submit(false)}
-            className="rounded-md border border-brand-text/20 bg-white px-4 py-2 text-sm font-medium text-brand-text hover:bg-brand-bg disabled:opacity-50"
+            className="rounded-md border border-brand-text/20 bg-white px-4 py-2 text-sm font-medium text-brand-text transition-colors hover:bg-brand-text/8 disabled:opacity-50"
           >
-            Save draft
+            {pending ? "Saving…" : "Save draft"}
           </button>
           <button
             type="button"
             disabled={pending}
             onClick={() => submit(true)}
-            className="rounded-md bg-brand-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+            className="rounded-md bg-brand-primary px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-80 disabled:opacity-50"
           >
             {pending ? "Saving…" : "Publish"}
           </button>
@@ -157,6 +178,12 @@ export function PostEditorForm({
       {error ? (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
           {error}
+        </p>
+      ) : null}
+
+      {successMsg ? (
+        <p className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+          ✓ {successMsg}
         </p>
       ) : null}
 
@@ -202,7 +229,7 @@ export function PostEditorForm({
             className="mt-1 w-full max-w-xs rounded-md border border-brand-text/20 px-3 py-2 text-sm"
           />
           <span className="mt-1 block text-xs text-brand-text/50">
-            Used when you click Publish. Leave empty to use “now”.
+            Used when you click Publish. Leave empty to use "now".
           </span>
         </label>
 

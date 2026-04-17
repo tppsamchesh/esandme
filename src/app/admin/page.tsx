@@ -81,7 +81,7 @@ export default async function AdminDashboardPage() {
                 recentOrders.map((row) => (
                   <tr
                     key={row.id ?? row.created_at}
-                    className="border-b border-brand-text/5 last:border-0"
+                    className="border-b border-brand-text/5 last:border-0 transition-colors hover:bg-brand-bg/60"
                   >
                     <td className="px-4 py-3 text-brand-text/90">
                       {formatOrderDate(row.created_at)}
@@ -120,7 +120,7 @@ export default async function AdminDashboardPage() {
             {lowStock.items.map((item, i) => (
               <li
                 key={`${item.productTitle}-${item.sku ?? i}-${item.stock}`}
-                className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-3"
+                className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-3 transition-colors hover:bg-brand-bg/60"
               >
                 <div>
                   <p className="font-medium text-brand-text">
