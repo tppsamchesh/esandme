@@ -72,34 +72,6 @@ function buildEmailHtml(
 `.trim();
 }
 
-/** WhatsApp Cloud API uses Meta Graph (not api.whatsapp.com for outbound sends). */
-async function sendWhatsAppNotification(params: {
-  token: string;
-  phoneNumberId: string;
-  recipient: string;
-  text: string;
-}): Promise<void> {
-  const url = `https://graph.facebook.com/v21.0/${params.phoneNumberId}/messages`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${params.token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      recipient_type: "individual",
-      to: params.recipient.replace(/^\+/, ""),
-      type: "text",
-      text: { body: params.text },
-    }),
-  });
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`WhatsApp API ${res.status}: ${errText}`);
-  }
-}
-
 export async function POST(req: Request) {
   try {
     let body: unknown;
@@ -185,35 +157,36 @@ export async function POST(req: Request) {
       );
     }
 
-    const waToken = process.env.WHATSAPP_TOKEN?.trim();
-    const waPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID?.trim();
-    const waRecipient = process.env.WHATSAPP_RECIPIENT_NUMBER?.trim();
+    const tgToken = process.env.TELEGRAM_BOT_TOKEN?.trim();
+    const tgChatId = process.env.TELEGRAM_CHAT_ID?.trim();
 
-    if (!waToken) {
+    if (!tgToken) {
       console.warn(
-        "[chatbot/collect-details] WHATSAPP_TOKEN is not set — skipping WhatsApp notification.",
-      );
-    } else if (!waPhoneId || !waRecipient) {
-      console.warn(
-        "[chatbot/collect-details] WHATSAPP_PHONE_NUMBER_ID or WHATSAPP_RECIPIENT_NUMBER missing — skipping WhatsApp.",
+        "[chatbot/collect-details] TELEGRAM_BOT_TOKEN is not set — skipping Telegram notification.",
       );
     } else {
       const asked = firstUserMessage(conversation);
-      const waText =
-        `New Es & Me enquiry from ${name} (${email}). ` +
-        `They asked: ${asked}. ` +
-        `Check the admin hub for the full conversation.`;
-      const clipped =
-        waText.length > 4090 ? `${waText.slice(0, 4087)}...` : waText;
+      const tgText =
+        `🛍 New Es & Me enquiry\n\nName: ${name}\nEmail: ${email}\nAsked: ${asked}\n\nCheck the admin hub for the full conversation.`;
       try {
-        await sendWhatsAppNotification({
-          token: waToken,
-          phoneNumberId: waPhoneId,
-          recipient: waRecipient,
-          text: clipped,
-        });
+        const tgRes = await fetch(
+          `https://api.telegram.org/bot${tgToken}/sendMessage`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: tgChatId, text: tgText }),
+          },
+        );
+        if (!tgRes.ok) {
+          const t = await tgRes.text();
+          console.error(
+            "[chatbot/collect-details] Telegram error",
+            tgRes.status,
+            t,
+          );
+        }
       } catch (e) {
-        console.error("[chatbot/collect-details] WhatsApp send failed", e);
+        console.error("[chatbot/collect-details] Telegram fetch failed", e);
       }
     }
 
