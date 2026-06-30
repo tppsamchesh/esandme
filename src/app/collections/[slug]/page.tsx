@@ -20,9 +20,11 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const supabase = createClient();
   const { slug } = await params;
+  // Note: the collections table has no seo_title/seo_description columns
+  // (unlike products/blog_posts), so we only request columns that exist.
   const { data } = await supabase
     .from("collections")
-    .select("title, description, seo_title, seo_description, hero_image_url")
+    .select("title, description, hero_image_url")
     .eq("slug", slug)
     .single();
 
@@ -30,9 +32,8 @@ export async function generateMetadata({
     return { title: "Collection not found" };
   }
 
-  const title = data.seo_title || `${data.title} | ${SITE.name}`;
+  const title = `${data.title} | ${SITE.name}`;
   const description =
-    data.seo_description ||
     data.description ||
     `Shop the ${data.title} collection at ${SITE.name}. ${SITE.description}`;
 
