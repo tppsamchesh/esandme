@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { fetchBlogPostBySlug } from "@/lib/supabase/queries";
 import type { Metadata } from "next";
-import { articleJsonLd, jsonLdScript } from "@/lib/seo/site";
+import { SITE, articleJsonLd, jsonLdScript } from "@/lib/seo/site";
 
 function formatPublishedDate(iso: string | null | undefined) {
   if (!iso) return "";
@@ -46,12 +46,14 @@ export async function generateMetadata({
   const post = (await fetchBlogPostBySlug(slug)) as BlogPost | null;
   if (!post) return { title: "Post not found" };
 
-  const title = post.seoTitle || post.title;
+  // Use an absolute title so an seoTitle that already contains the brand
+  // isn't double-suffixed by the root layout's "%s | Es & Me" template.
+  const title = post.seoTitle || `${post.title} | ${SITE.name}`;
   const description = post.seoDescription || post.excerpt;
   const ogImage = post.coverImage || undefined;
 
   return {
-    title,
+    title: { absolute: title },
     description,
     alternates: { canonical: `/blog/${slug}` },
     openGraph: {
