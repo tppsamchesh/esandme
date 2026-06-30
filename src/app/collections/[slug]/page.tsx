@@ -1,8 +1,56 @@
+import type { Metadata } from "next";
 import { getSupabase as createClient } from "@/lib/supabase/client";
 import { CollectionProductCard } from "./CollectionProductCard";
+import {
+  SITE,
+  breadcrumbJsonLd,
+  collectionJsonLd,
+  jsonLdScript,
+} from "@/lib/seo/site";
 
-export const revalidate = 0;
-export const dynamic = "force-dynamic";
+// ISR: serve a cached, statically-rendered page and refresh it at most once
+// per hour. Far better TTFB / Core Web Vitals than force-dynamic, while keeping
+// product listings reasonably fresh. Admin edits can trigger on-demand revalidation.
+export const revalidate = 3600;
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const supabase = createClient();
+  const { slug } = await params;
+  const { data } = await supabase
+    .from("collections")
+    .select("title, description, seo_title, seo_description, hero_image_url")
+    .eq("slug", slug)
+    .single();
+
+  if (!data) {
+    return { title: "Collection not found" };
+  }
+
+  const title = data.seo_title || `${data.title} | ${SITE.name}`;
+  const description =
+    data.seo_description ||
+    data.description ||
+    `Shop the ${data.title} collection at ${SITE.name}. ${SITE.description}`;
+
+  return {
+    title: { absolute: title },
+    description,
+    alternates: { canonical: `/collections/${slug}` },
+    openGraph: {
+      type: "website",
+      title,
+      description,
+      url: `/collections/${slug}`,
+      ...(data.hero_image_url
+        ? { images: [{ url: data.hero_image_url }] }
+        : {}),
+    },
+  };
+}
 
 type CollectionRow = {
   id: string;
@@ -69,8 +117,25 @@ export default async function CollectionPage({
     images = imagesData as ProductImageRow[] | null;
   }
 
+  const collectionSchema = collectionJsonLd({
+    title: col.title,
+    slug: col.slug,
+    description: col.description,
+    products: products.map((p) => ({ title: p.title, slug: p.slug })),
+  });
+  const breadcrumbSchema = breadcrumbJsonLd([
+    { name: "Home", path: "/" },
+    { name: col.title, path: `/collections/${col.slug}` },
+  ]);
+
   return (
     <div className="w-full">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: jsonLdScript([collectionSchema, breadcrumbSchema]),
+        }}
+      />
       <section className="w-full">
         {col.hero_image_url ? (
           <div className="relative w-full">

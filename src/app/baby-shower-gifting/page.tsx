@@ -1,7 +1,22 @@
+import type { Metadata } from "next";
 import { getSupabase } from "@/lib/supabase/client";
 import { BabyShowerBundleClient } from "./BabyShowerBundleClient";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Baby Shower Gifting — Build a Bundle & Save 10%",
+  description:
+    "Create the perfect baby shower gift. Pick your favourite Es & Me muslins, changing essentials and the Snuggy Bunny, bundle them and save 10%.",
+  alternates: { canonical: "/baby-shower-gifting" },
+  openGraph: {
+    type: "website",
+    title: "Baby Shower Gifting | Es & Me",
+    description:
+      "Build a personalised baby shower gift bundle and save 10%.",
+    url: "/baby-shower-gifting",
+  },
+};
 
 export default async function BabyShowerGiftingPage() {
   const supabase = getSupabase();

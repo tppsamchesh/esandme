@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { fetchBlogPostBySlug } from "@/lib/supabase/queries";
 import type { Metadata } from "next";
+import { articleJsonLd, jsonLdScript } from "@/lib/seo/site";
 
 function formatPublishedDate(iso: string | null | undefined) {
   if (!iso) return "";
@@ -44,9 +45,29 @@ export async function generateMetadata({
   const { slug } = await params;
   const post = (await fetchBlogPostBySlug(slug)) as BlogPost | null;
   if (!post) return { title: "Post not found" };
+
+  const title = post.seoTitle || post.title;
+  const description = post.seoDescription || post.excerpt;
+  const ogImage = post.coverImage || undefined;
+
   return {
-    title: post.seoTitle || post.title,
-    description: post.seoDescription || post.excerpt,
+    title,
+    description,
+    alternates: { canonical: `/blog/${slug}` },
+    openGraph: {
+      type: "article",
+      title,
+      description,
+      url: `/blog/${slug}`,
+      ...(post.publishedAt ? { publishedTime: post.publishedAt } : {}),
+      ...(ogImage ? { images: [{ url: ogImage, alt: post.title }] } : {}),
+    },
+    twitter: {
+      card: ogImage ? "summary_large_image" : "summary",
+      title,
+      description,
+      ...(ogImage ? { images: [ogImage] } : {}),
+    },
   };
 }
 
@@ -62,8 +83,22 @@ export default async function BlogPostPage({
 
   const markdown = bodyToMarkdown(post.body);
 
+  const articleSchema = articleJsonLd({
+    title: post.title,
+    slug: post.slug?.current || slug,
+    description: post.seoDescription || post.excerpt,
+    image: post.coverImage,
+    publishedAt: post.publishedAt,
+  });
+
   return (
     <article className="pb-16 md:pb-24">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: jsonLdScript(articleSchema),
+        }}
+      />
       <div className="border-b border-black/10 bg-brand-bg/50">
         <div className="mx-auto max-w-3xl px-4 py-10 md:py-14">
           <Link

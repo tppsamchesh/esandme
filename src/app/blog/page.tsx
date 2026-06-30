@@ -1,5 +1,20 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { fetchAllBlogPosts } from "@/lib/supabase/queries";
+
+export const metadata: Metadata = {
+  title: "Journal",
+  description:
+    "The Es & Me journal — guides on baby essentials, gifting, muslins and caring for your little one. Tips for new and expecting parents.",
+  alternates: { canonical: "/blog" },
+  openGraph: {
+    type: "website",
+    title: "Journal | Es & Me",
+    description:
+      "Guides on baby essentials, gifting and caring for your little one.",
+    url: "/blog",
+  },
+};
 
 function formatPublishedDate(iso: string | null | undefined) {
   if (!iso) return "";

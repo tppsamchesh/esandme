@@ -4,6 +4,12 @@ import AddToCart from "@/components/commerce/AddToCart";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ProductImageGallery } from "./ProductImageGallery";
+import {
+  SITE,
+  breadcrumbJsonLd,
+  productJsonLd,
+  jsonLdScript,
+} from "@/lib/seo/site";
 
 type ProductDoc = {
   title: string;
@@ -12,6 +18,7 @@ type ProductDoc = {
   seoDescription?: string | null;
   price: number;
   comparePrice?: number | null;
+  images?: string[];
 };
 
 export async function generateMetadata({
@@ -26,14 +33,29 @@ export async function generateMetadata({
     return { title: "Product not found" };
   }
 
-  const pageTitle = product.seoTitle || `${product.title} | Es & Me`;
+  const pageTitle = product.seoTitle || `${product.title} | ${SITE.name}`;
+  const description =
+    product.seoDescription || product.description || SITE.description;
+  const ogImage = product.images?.[0];
 
   return {
     title: { absolute: pageTitle },
-    description:
-      product.seoDescription || product.description || undefined,
+    description,
     alternates: {
       canonical: `/products/${slug}`,
+    },
+    openGraph: {
+      type: "website",
+      title: pageTitle,
+      description,
+      url: `/products/${slug}`,
+      ...(ogImage ? { images: [{ url: ogImage, alt: product.title }] } : {}),
+    },
+    twitter: {
+      card: ogImage ? "summary_large_image" : "summary",
+      title: pageTitle,
+      description,
+      ...(ogImage ? { images: [ogImage] } : {}),
     },
   };
 }
@@ -147,25 +169,46 @@ export default async function ProductPage({
   const schemaDescription =
     typeof product.description === "string" ? product.description : "";
 
-  const productJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Product",
-    name: product.title,
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const stockValues = variants
+    .map((v) => (typeof v.stock === "number" ? v.stock : null))
+    .filter((s): s is number => s != null);
+  // In stock unless every variant that tracks stock is at zero.
+  const inStock =
+    stockValues.length === 0 || stockValues.some((s) => s > 0);
+  const firstSku = variants.find((v) => v.sku)?.sku ?? null;
+
+  const productSchema = productJsonLd({
+    title: product.title,
+    slug,
     description: schemaDescription,
-    offers: {
-      "@type": "Offer",
-      price: product.price / 100,
-      priceCurrency: "GBP",
-      availability: "https://schema.org/InStock",
-    },
-  };
+    pricePence: product.price,
+    images: Array.isArray(product.images) ? product.images : [],
+    sku: firstSku,
+    inStock,
+    reviews: Array.isArray(product.reviews)
+      ? (product.reviews as Array<{
+          rating?: number;
+          author?: string;
+          body?: string;
+        }>)
+      : [],
+  });
+
+  const breadcrumbSchema = breadcrumbJsonLd([
+    { name: "Home", path: "/" },
+    ...(collectionTitle && collectionSlug
+      ? [{ name: collectionTitle, path: `/collections/${collectionSlug}` }]
+      : []),
+    { name: product.title, path: `/products/${slug}` },
+  ]);
 
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(productJsonLd),
+          __html: jsonLdScript([productSchema, breadcrumbSchema]),
         }}
       />
       <div>

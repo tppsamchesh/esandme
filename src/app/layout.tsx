@@ -2,6 +2,11 @@ import type { Metadata } from "next";
 import { Cormorant_Garamond, DM_Sans } from "next/font/google";
 import { ChatBot } from "@/components/chatbot/ChatBot";
 import { SiteChrome } from "@/components/layout/SiteChrome";
+import {
+  organizationJsonLd,
+  websiteJsonLd,
+  jsonLdScript,
+} from "@/lib/seo/site";
 import "./globals.css";
 
 const cormorant = Cormorant_Garamond({
@@ -17,7 +22,7 @@ const dmSans = DM_Sans({
 });
 
 const siteUrl =
-  process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  process.env.NEXT_PUBLIC_SITE_URL || "https://www.esandme.com";
 const metadataBase = new URL(
   siteUrl.endsWith("/") ? siteUrl.slice(0, -1) : siteUrl
 );
@@ -33,6 +38,19 @@ export const metadata: Metadata = {
     template: "%s | Es & Me",
   },
   description: defaultDescription,
+  applicationName: "Es & Me",
+  keywords: [
+    "baby products",
+    "baby gifts",
+    "muslins",
+    "baby changing mat",
+    "changing bag",
+    "baby comforter",
+    "baby shower gifts",
+    "newborn essentials",
+    "UK baby brand",
+  ],
+  authors: [{ name: "Es & Me" }],
   alternates: {
     canonical: "/",
   },
@@ -43,6 +61,22 @@ export const metadata: Metadata = {
     siteName: "Es & Me",
     title: defaultTitle,
     description: defaultDescription,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: defaultTitle,
+    description: defaultDescription,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
   },
 };
 
@@ -57,6 +91,12 @@ export default function RootLayout({
       className={`${cormorant.variable} ${dmSans.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-brand-bg font-sans text-brand-text">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: jsonLdScript([organizationJsonLd(), websiteJsonLd()]),
+          }}
+        />
         <SiteChrome>{children}</SiteChrome>
         <ChatBot />
       </body>
