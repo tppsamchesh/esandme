@@ -6,6 +6,7 @@ import {
   breadcrumbJsonLd,
   collectionJsonLd,
   jsonLdScript,
+  truncateForMeta,
 } from "@/lib/seo/site";
 
 // ISR: serve a cached, statically-rendered page and refresh it at most once
@@ -33,9 +34,11 @@ export async function generateMetadata({
   }
 
   const title = `${data.title} | ${SITE.name}`;
-  const description =
+  // On-page intro copy can run long; keep the meta/OG description tight.
+  const description = truncateForMeta(
     data.description ||
-    `Shop the ${data.title} collection at ${SITE.name}. ${SITE.description}`;
+      `Shop the ${data.title} collection at ${SITE.name}. ${SITE.description}`,
+  );
 
   return {
     title: { absolute: title },

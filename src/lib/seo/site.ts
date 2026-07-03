@@ -284,3 +284,16 @@ export function collectionJsonLd(input: CollectionSchemaInput) {
 export function jsonLdScript(data: unknown): string {
   return JSON.stringify(data);
 }
+
+/**
+ * Trim long body copy down to a meta-description-friendly length at a word
+ * boundary, so a rich on-page intro can double as SEO copy without producing
+ * an overlong <meta description> that Google would truncate mid-word.
+ */
+export function truncateForMeta(text: string, max = 160): string {
+  const clean = text.replace(/\s+/g, " ").trim();
+  if (clean.length <= max) return clean;
+  const cut = clean.slice(0, max);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${cut.slice(0, lastSpace > 0 ? lastSpace : max).trim()}…`;
+}
