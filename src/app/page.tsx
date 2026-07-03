@@ -185,7 +185,7 @@ export default function Home() {
                     {imageUrl ? (
                       <Image
                         src={imageUrl}
-                        alt=""
+                        alt={`${label} baby products from Es & Me`}
                         fill
                         className="object-cover"
                         sizes="(max-width: 768px) 50vw, 25vw"
@@ -238,7 +238,7 @@ export default function Home() {
           <div className="relative mt-10 min-h-[280px] w-full overflow-hidden rounded-xl md:mt-0 md:min-h-[480px] md:w-1/2 md:rounded-none">
             <Image
               src={BABY_SHOWER_IMAGE}
-              alt=""
+              alt="Es & Me baby shower gift basket with muslins and baby essentials"
               fill
               className="object-cover"
               sizes="(max-width: 768px) 100vw, 50vw"

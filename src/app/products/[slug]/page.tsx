@@ -306,7 +306,9 @@ export default async function ProductPage({
                       {rp.imageUrl ? (
                         <img
                           src={rp.imageUrl}
-                          alt=""
+                          alt={rp.title}
+                          loading="lazy"
+                          decoding="async"
                           className="h-full w-full object-cover"
                         />
                       ) : (

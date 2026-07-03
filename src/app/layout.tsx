@@ -27,6 +27,16 @@ const metadataBase = new URL(
   siteUrl.endsWith("/") ? siteUrl.slice(0, -1) : siteUrl
 );
 
+// Origin that serves product/collection/blog images (Supabase storage).
+// Preconnecting shaves the TLS/DNS handshake off image loads, helping LCP.
+const imageOrigin = (() => {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL || "").origin;
+  } catch {
+    return "";
+  }
+})();
+
 const defaultTitle = "Es & Me | Premium Baby Products UK";
 const defaultDescription =
   "Premium baby products and gifts, made with care. Shop muslins, baby changing and the Snuggy Bunny comforter.";
@@ -91,6 +101,12 @@ export default function RootLayout({
       className={`${cormorant.variable} ${dmSans.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-brand-bg font-sans text-brand-text">
+        {imageOrigin ? (
+          <>
+            <link rel="preconnect" href={imageOrigin} crossOrigin="" />
+            <link rel="dns-prefetch" href={imageOrigin} />
+          </>
+        ) : null}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{

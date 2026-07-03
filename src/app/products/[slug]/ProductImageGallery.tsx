@@ -41,6 +41,8 @@ export function ProductImageGallery({
           <img
             src={main.url}
             alt={productTitle}
+            fetchPriority="high"
+            decoding="async"
             className="absolute inset-0 h-full w-full object-cover"
           />
         ) : null}
@@ -65,7 +67,9 @@ export function ProductImageGallery({
                 {img.url ? (
                   <img
                     src={img.url}
-                    alt=""
+                    alt={`${productTitle} thumbnail ${index + 1}`}
+                    loading="lazy"
+                    decoding="async"
                     className="h-full w-full object-cover"
                   />
                 ) : (

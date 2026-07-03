@@ -142,7 +142,9 @@ export default async function CollectionPage({
           <div className="relative w-full">
             <img
               src={col.hero_image_url}
-              alt=""
+              alt={`${col.title} collection`}
+              fetchPriority="high"
+              decoding="async"
               className="h-48 sm:h-64 md:h-72 w-full object-cover"
             />
             <div className="absolute inset-0 bg-black/20" aria-hidden />
